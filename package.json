@@ -1,0 +1,31 @@
+{
+  "name": "access-control-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sistema de Control de Acceso - monorepo (API, web administrativa y app movil)",
+  "type": "module",
+  "workspaces": [
+    "apps/api",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @scaccess/api",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:watch": "npm run test:watch --workspace @scaccess/api",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "prisma:generate": "npm run prisma:generate --workspace @scaccess/api",
+    "prisma:migrate": "npm run prisma:migrate --workspace @scaccess/api",
+    "prisma:studio": "npm run prisma:studio --workspace @scaccess/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.1"
+  }
+}

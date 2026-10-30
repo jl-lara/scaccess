@@ -1,0 +1,15 @@
+// Esquema Prisma del Sistema de Control de Acceso.
+//
+// El modelo de datos definitivo esta pendiente de aprobacion por el lider
+// tecnico (ver docs/DATABASE.md). Este archivo solo configura el proveedor y
+// el generador para poder preparar Prisma sin ejecutar migraciones.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
