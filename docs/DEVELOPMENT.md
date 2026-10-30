@@ -85,6 +85,20 @@ npm test --workspace @scaccess/api
 - No hacer merge automatico ni `force push`.
 - No publicar cambios sin verificar lint, typecheck, test y build.
 
+## Remoto GitHub
+
+Al inicializar la mision 01 no habia ningun remoto configurado. Cuando el
+lider tecnico proporcione la URL del repositorio:
+
+```bash
+git remote add origin <GITHUB_REPOSITORY_URL>
+git push -u origin main
+git push -u origin feat/backend-foundation
+```
+
+Reglas: no reemplazar un remoto existente sin autorizacion, no usar
+`--force` y no sobrescribir ramas remotas.
+
 ## Solucion de problemas
 
 - **`DATABASE_URL is not configured` al usar Prisma:** configura `.env` en la
