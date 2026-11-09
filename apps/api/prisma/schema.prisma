@@ -146,6 +146,7 @@ model UserRole {
 
   @@id([userId, roleId])
   @@index([roleId])
+  @@index([assignedById])
   @@map("user_roles")
 }
 
@@ -204,6 +205,7 @@ model AccessPermission {
 
   @@index([employeeId, areaId])
   @@index([areaId])
+  @@index([grantedById])
   @@index([validFrom, validTo])
   @@map("access_permissions")
 }
@@ -304,6 +306,7 @@ model AccessEvent {
   @@unique([deviceId, deviceSequence])
   @@index([occurredAt(sort: Desc)])
   @@index([employeeId, occurredAt(sort: Desc)])
+  @@index([credentialId])
   @@index([deviceId, occurredAt(sort: Desc)])
   @@index([areaId, occurredAt(sort: Desc)])
   @@index([receivedAt])
