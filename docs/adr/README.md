@@ -14,12 +14,16 @@ Los estados se clasifican en:
 | [0004](0004-supabase-auth.md) | Supabase Auth | Aprobado |
 | [0005](0005-rest-openapi.md) | API REST/JSON + OpenAPI | Aprobado |
 | [0006](0006-edge-offline-first.md) | Offline-first solo en el controlador fisico | Aprobado |
-| [0007](0007-tooling-version-selection.md) | Versiones de TypeScript y Prisma | Propuesto |
+| [0007](0007-tooling-version-selection.md) | Versiones de TypeScript y Prisma | Aprobado |
+| [0008](0008-data-model-and-integrity.md) | Modelo de datos e integridad (12 tablas, 6 enums) | Aprobado |
+| [0009](0009-device-authentication.md) | Autenticacion de dispositivos por token opaco | Aprobado |
+| [0010](0010-offline-sync-and-idempotency.md) | Sincronizacion offline e idempotencia de eventos | Aprobado |
+| [0011](0011-supabase-connection-and-rls.md) | Conexion a Supabase (DATABASE_URL/DIRECT_URL) y RLS | Aprobado |
+| [0012](0012-admin-roles-and-permissions.md) | RBAC administrativo (roles + user_roles) | Aprobado |
 
-## Decisiones aun sin ADR
+## Decisiones pendientes
 
-- Modelo de datos definitivo (ver [../DATABASE.md](../DATABASE.md)).
-- Mecanismo de autenticacion de dispositivos fisicos.
-- Estrategia de versionado de sincronizacion.
-- Modelo de roles y permisos administrativos.
-- Politicas de Row Level Security en Supabase.
+- Adopcion de TypeScript 7 / Prisma 8 cuando sean estables y compatibles
+  (revision periodica, ver ADR-0007).
+- Parametrizacion de la ventana de revocacion offline y de la antiguedad maxima
+  de configuracion (ver ADR-0010) antes de produccion.

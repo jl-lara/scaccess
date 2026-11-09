@@ -1,6 +1,6 @@
 # ADR-0007: Seleccion de versiones de TypeScript y Prisma
 
-- **Estado:** Propuesto (requiere confirmacion del lider tecnico)
+- **Estado:** Aprobado
 - **Fecha:** 2026-10-29
 
 ## Problema encontrado
@@ -12,7 +12,7 @@ Al consultar el registro de npm (2026-10-29):
 - `prisma@latest` es **8.0.0-rc.28**, una version candidata (pre-release). La
   version estable publicada es **7.10.1** (`@prisma/client@latest` = 7.10.1).
 
-## Decision propuesta
+## Decision
 
 - Fijar **TypeScript 5.9.3** (ultima estable de la linea 5.x) para mantener
   lint y tooling soportados.

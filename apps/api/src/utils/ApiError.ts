@@ -26,4 +26,8 @@ export class ApiError extends Error {
   static badRequest(message = 'Invalid request', details?: unknown): ApiError {
     return new ApiError(400, 'BAD_REQUEST', message, details)
   }
+
+  static conflict(message: string, details?: unknown): ApiError {
+    return new ApiError(409, 'CONFLICT', message, details)
+  }
 }

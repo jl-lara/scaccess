@@ -5,8 +5,8 @@
   "description": "Sistema de Control de Acceso - monorepo (API, web administrativa y app movil)",
   "type": "module",
   "workspaces": [
-    "apps/api",
-    "packages/*"
+    "packages/*",
+    "apps/api"
   ],
   "engines": {
     "node": ">=22.12.0"
@@ -20,6 +20,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "prisma:generate": "npm run prisma:generate --workspace @scaccess/api",
     "prisma:migrate": "npm run prisma:migrate --workspace @scaccess/api",
+    "prisma:seed": "npm run prisma:seed --workspace @scaccess/api",
     "prisma:studio": "npm run prisma:studio --workspace @scaccess/api"
   },
   "devDependencies": {

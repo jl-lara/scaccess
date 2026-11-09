@@ -25,7 +25,8 @@ explicitamente (Prisma 7 no lo hace por si solo).
 | `NODE_ENV` | No | `development`, `test` o `production` (default `development`) |
 | `PORT` | No | Puerto HTTP (default `3000`) |
 | `CORS_ORIGIN` | No | Origenes permitidos separados por coma, o `*` |
-| `DATABASE_URL` | Solo para BD | Cadena de conexion PostgreSQL/Supabase |
+| `DATABASE_URL` | Solo para BD | Cadena de conexion PostgreSQL/Supabase (solo `postgres://` o `postgresql://`) |
+| `DIRECT_URL` | No | Conexion directa (sin pooler) para migraciones; misma base que `DATABASE_URL` |
 | `SUPABASE_URL` | No (aun) | URL del proyecto Supabase (auth futuro) |
 | `SUPABASE_ANON_KEY` | No (aun) | Clave publica de Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | No (aun) | Clave de servicio; solo servidor, nunca en clientes |
@@ -57,10 +58,12 @@ npm test --workspace @scaccess/api
 ## Base de datos
 
 1. Crear un proyecto en Supabase (o usar un PostgreSQL local).
-2. Copiar la cadena de conexion a `DATABASE_URL` en `.env`.
-3. El esquema actual no tiene modelos: el modelo esta pendiente de aprobacion.
-4. No ejecutar migraciones contra una base real hasta que el modelo sea
-   aprobado. Ver [DATABASE.md](DATABASE.md).
+2. Copiar la cadena de conexion a `DATABASE_URL` en `.env`. Para migraciones
+   puedes definir tambien `DIRECT_URL` (conexion directa sin pooler).
+3. El modelo de datos ya esta aprobado y definido en
+   `apps/api/prisma/schema.prisma`.
+4. No ejecutar migraciones contra una base real hasta conectar la instancia de
+   desarrollo. Ver [DATABASE.md](DATABASE.md).
 
 ## Pruebas
 
