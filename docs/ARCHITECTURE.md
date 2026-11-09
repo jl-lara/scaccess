@@ -36,6 +36,14 @@ offline-first y sincroniza con la API.
 ## Monolito modular
 
 - Un solo proceso desplegable (`apps/api`).
+- El backend se empaqueta como **imagen Docker multi-etapa** (`Dockerfile`)
+  basada en `node:22-alpine`, junto con el workspace `@scaccess/shared`. La
+  imagen se ejecuta con el usuario no-root `node`, expone el puerto `3000` y
+  declara un `HEALTHCHECK` contra `/api/v1/health`.
+- La orquestacion local usa `docker-compose.yml` (imagen
+  `scaccess-api:latest`); en Render el mismo artefacto se despliega con
+  `runtime: docker`. Se mantiene un unico servicio de backend, sin
+  microservicios ni Kubernetes (ver [ADR-0013](adr/0013-docker-containerization.md)).
 - Separacion interna por modulos de negocio (`src/modules/<modulo>`), cada uno
   con sus rutas, controladores y servicios.
 - Un modulo no accede a la base de datos de otro modulo por atajos: usa sus
@@ -108,7 +116,8 @@ Modulos implementados en `apps/api/src/modules`: `health`, `openapi`, `auth`,
   responder `/api/v1/health` sin credenciales de base de datos.
 - El modelo de datos esta definido en `apps/api/prisma/schema.prisma` y
   documentado en [DATABASE.md](DATABASE.md), con las decisiones de integridad
-  en ADR-0008 a ADR-0012.
+  en ADR-0008 a ADR-0012. El empaquetado y el despliegue del backend se
+  documentan en [ADR-0013](adr/0013-docker-containerization.md).
 - El seed (`npm run prisma:seed`) es idempotente y garantiza los roles del
   sistema y las areas base.
 
@@ -148,6 +157,6 @@ Consideraciones de diseno:
 - Sin microservicios, sin colas distribuidas, sin Kubernetes.
 - Sin integracion de hardware real en esta etapa; no se simula como si lo
   fuera.
-- Modelo de datos y reglas de permisos aprobados en ADR-0008 a ADR-0012;
-  cualquier cambio requiere una nueva ADR.
+- Modelo de datos, reglas de permisos y empaquetado aprobados en ADR-0008 a
+  ADR-0013; cualquier cambio requiere una nueva ADR.
 - La interfaz de usuario sera en espanol; identificadores de codigo en ingles.

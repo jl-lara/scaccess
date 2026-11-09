@@ -1,21 +1,25 @@
 # Blueprint de Render para el backend del Sistema de Control de Acceso.
+# El servicio se construye y ejecuta como contenedor Docker (runtime: docker).
 # Plan gratuito: el servicio se suspende tras 15 minutos de inactividad.
-# Documentacion: docs/DEVELOPMENT.md
+# Documentacion: docs/DEVELOPMENT.md y docs/adr/0013-docker-containerization.md
 services:
   - type: web
     name: scaccess-api
-    runtime: node
+    runtime: docker
     plan: free
-    # --include=dev instala TypeScript y la CLI de Prisma aunque Render defina
-    # NODE_ENV=production durante el build.
-    buildCommand: npm ci --include=dev && npm run build
-    startCommand: npm start
+    # La imagen se construye con el Dockerfile multi-etapa de la raiz del
+    # monorepo. El propio Dockerfile fija node:22-alpine, compila TypeScript y
+    # define el CMD; por eso no se usan buildCommand, startCommand ni
+    # NODE_VERSION con runtime: docker.
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: NODE_VERSION
-        value: 22.18.0
+      # Coincide con el puerto expuesto por la imagen y con el HEALTHCHECK.
+      - key: PORT
+        value: 3000
       # Valores secretos: Render los solicita al crear el servicio y no los
       # sincroniza con otros servicios del Blueprint.
       - key: CORS_ORIGIN

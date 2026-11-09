@@ -23,7 +23,11 @@
     "prisma:migrate": "npm run prisma:migrate --workspace @scaccess/api",
     "prisma:migrate:deploy": "npm run prisma:migrate:deploy --workspace @scaccess/api",
     "prisma:seed": "npm run prisma:seed --workspace @scaccess/api",
-    "prisma:studio": "npm run prisma:studio --workspace @scaccess/api"
+    "prisma:studio": "npm run prisma:studio --workspace @scaccess/api",
+    "docker:build": "docker build -t scaccess-api:latest .",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f api"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

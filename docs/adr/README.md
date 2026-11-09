@@ -20,6 +20,7 @@ Los estados se clasifican en:
 | [0010](0010-offline-sync-and-idempotency.md) | Sincronizacion offline e idempotencia de eventos | Aprobado |
 | [0011](0011-supabase-connection-and-rls.md) | Conexion a Supabase (DATABASE_URL/DIRECT_URL) y RLS | Aprobado |
 | [0012](0012-admin-roles-and-permissions.md) | RBAC administrativo (roles + user_roles) | Aprobado |
+| [0013](0013-docker-containerization.md) | Empaquetado y despliegue con Docker | Aprobado |
 
 ## Decisiones pendientes
 
