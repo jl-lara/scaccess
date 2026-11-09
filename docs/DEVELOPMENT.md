@@ -102,6 +102,110 @@ git push -u origin feat/backend-foundation
 Reglas: no reemplazar un remoto existente sin autorizacion, no usar
 `--force` y no sobrescribir ramas remotas.
 
+## Despliegue en Render (Plan Gratuito)
+
+El backend se despliega como un servicio web de Render (`runtime: node`,
+`plan: free`). El repositorio incluye `render.yaml` en la raiz para crear el
+servicio con Blueprint.
+
+### Opcion A: Blueprint (`render.yaml`)
+
+1. En Render, elige **New > Blueprint** y conecta el repositorio de GitHub.
+2. Render detecta `render.yaml` y muestra el servicio `scaccess-api` con build,
+   start y health check ya definidos.
+3. Completa las variables marcadas con `sync: false` (ver la tabla siguiente) y
+   aplica el Blueprint.
+4. Espera el primer build y verifica
+   `https://<servicio>.onrender.com/api/v1/health`.
+
+Cada push a la rama configurada vuelve a desplegar automaticamente.
+
+### Opcion B: configuracion manual
+
+En Render elige **New > Web Service**, conecta el repositorio y configura:
+
+| Campo | Valor |
+| --- | --- |
+| Name | `scaccess-api` |
+| Language / Runtime | Node |
+| Region | la mas cercana (por ejemplo, Oregon) |
+| Branch | la rama que se despliega |
+| Root Directory | vacio (la raiz del monorepo) |
+| Build Command | `npm ci --include=dev && npm run build` |
+| Start Command | `npm start` |
+| Health Check Path | `/api/v1/health` |
+| Instance Type | Free |
+
+`Root Directory` debe quedar vacio porque el build y el start se ejecutan desde
+la raiz del monorepo (npm workspaces). `npm start` delega en `@scaccess/api`,
+que ejecuta `node dist/server.js`; el build genera el cliente de Prisma
+(`prebuild`) y compila TypeScript con `tsc`.
+
+### Variables de entorno
+
+| Variable | Valor |
+| --- | --- |
+| `NODE_ENV` | `production` |
+| `NODE_VERSION` | `22.18.0` |
+| `CORS_ORIGIN` | Origen de la web administrativa separado por comas; usar `*` solo en pruebas |
+| `DATABASE_URL` | Supavisor Pooler, modo transaccion, puerto `6543` (ver abajo) |
+| `DIRECT_URL` | Supavisor Pooler, modo sesion, puerto `5432` (ver abajo) |
+| `SUPABASE_URL` | URL del proyecto Supabase |
+| `SUPABASE_ANON_KEY` | Clave publica (`anon`) de Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Clave de servicio; solo servidor, nunca en clientes |
+
+`PORT` lo inyecta Render; no hace falta definirlo.
+
+### Conexion a Supabase desde Render (Supavisor / IPv4)
+
+En Supabase abre **Connect > Connection Pooling (Supavisor)** y usa el host
+`aws-0-<region>.pooler.supabase.com`. En Render Free se debe usar el **pooler**
+para ambas variables porque los contenedores salen por IPv4 y el host directo
+`db.<ref>.supabase.co` solo resuelve a IPv6 en el plan gratuito de Supabase: una
+conexion directa desde Render falla.
+
+- `DATABASE_URL` (runtime, modo transaccion, puerto `6543`):
+
+  ```text
+  postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true
+  ```
+
+- `DIRECT_URL` (migraciones, modo sesion, puerto `5432`):
+
+  ```text
+  postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+  ```
+
+El puerto `5432` del pooler corresponde al modo sesion, no al host directo; sigue
+siendo IPv4. `DIRECT_URL` se usa solo para `prisma migrate` (ver
+`apps/api/prisma.config.ts`). Si la contrasena contiene caracteres especiales,
+codificalos con URL encoding.
+
+Las migraciones no se ejecutan solas en el plan gratuito (los pre-deploy
+commands no estan disponibles). Aplicarlas manualmente desde la **Shell** de
+Render, o en local con `DIRECT_URL` apuntando a Supabase:
+
+```bash
+npm run prisma:migrate:deploy
+```
+
+### Mitigacion de cold starts
+
+Render Free suspende el servicio tras 15 minutos sin trafico; la primera
+peticion despues de la suspension tarda en responder (cold start). Para demos
+academicas:
+
+- Despertar el servicio con `GET /api/v1/health` unos minutos antes de la demo.
+- Usar un monitor externo (UptimeRobot, cron-job.org, etc.) que haga ping al
+  health check cada 10-14 minutos. El endpoint no consulta la base de datos, asi
+  que mantiene el proceso caliente sin gastar consultas.
+
+El controlador fisico ESP32-S3 opera offline-first: antes de sincronizar debe
+hacer un `GET /api/v1/health` con timeout corto y reintentos con backoff; si no
+responde, conserva los eventos en la cola local y reintenta despues. El
+controlador no debe perder eventos por un cold start ni bloquear la validacion
+offline.
+
 ## Solucion de problemas
 
 - **`DATABASE_URL is not configured` al usar Prisma:** configura `.env` en la
