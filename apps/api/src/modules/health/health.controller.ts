@@ -1,11 +1,5 @@
+import type { HealthCheckResponse } from '@scaccess/shared'
 import type { Request, Response } from 'express'
-
-interface HealthCheckResponse {
-  status: 'ok'
-  service: string
-  timestamp: string
-  uptimeSeconds: number
-}
 
 const SERVICE_NAME = 'access-control-api'
 

@@ -8,7 +8,9 @@ import { defineConfig } from 'prisma/config'
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 loadEnv({ path: path.join(projectRoot, '.env'), quiet: true })
 
-const databaseUrl = process.env.DATABASE_URL
+// Migrations must use the direct connection (no pooler); fall back to the
+// runtime URL when DIRECT_URL is not defined (ADR-0011).
+const databaseUrl = process.env.DIRECT_URL ?? process.env.DATABASE_URL
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',

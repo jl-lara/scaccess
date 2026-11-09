@@ -43,9 +43,10 @@ offline-first y sincroniza con la API.
 - Se evitan microservicios, Kubernetes, colas distribuidas y otras piezas de
   infraestructura que no aportan al alcance del prototipo.
 
-Modulos previstos: `health` (implementado), `employees`, `credentials`
-(tarjetas), `areas`, `access-permissions`, `access-devices`,
-`access-events`, `device-sync`, `auth`, `users`, `roles`.
+Modulos implementados en `apps/api/src/modules`: `health`, `openapi`, `auth`,
+`users`, `roles`, `areas`, `employees`, `credentials` (tarjetas RFID),
+`access-permissions`, `access-devices`, `device-sync`, `access-events` y
+`dashboard`. Todos se montan bajo `/api/v1` desde `src/routes/index.ts`.
 
 ## Responsabilidad de cada aplicacion
 
@@ -53,9 +54,11 @@ Modulos previstos: `health` (implementado), `employees`, `credentials`
 
 - Expone los contratos REST/JSON versionados en `/api/v1`.
 - Valida entradas con Zod y centraliza errores en un formato uniforme.
-- Aplica autenticacion/autorizacion (Supabase Auth) en misiones posteriores.
+- Aplica autenticacion con Supabase Auth y autorizacion por roles
+  (`admin`, `operator`, `auditor`) mediante middlewares.
 - Es la unica capa con acceso directo a PostgreSQL via Prisma.
-- Atiende la sincronizacion de los dispositivos fisicos.
+- Atiende la sincronizacion de los dispositivos fisicos con credenciales
+  propias (`<tokenId>.<secret>`).
 
 ### Web administrativa (`apps/admin`)
 
@@ -75,21 +78,24 @@ Modulos previstos: `health` (implementado), `employees`, `credentials`
 ### `packages/shared`
 
 - Tipos y constantes de contrato compartidos. Sin logica de negocio ni
-  dependencias de runtime. Se adoptara desde los clientes cuando se
-  implementen los endpoints de sincronizacion.
+  dependencias de runtime. La API ya consume los tipos de salud,
+  sincronizacion, DTO administrativos y dashboard; los clientes adoptaran los
+  mismos contratos.
 
 ## Comunicacion clientes-backend
 
 - REST sobre JSON, prefijo `/api/v1`.
-- Autenticacion prevista con tokens de Supabase Auth (`Authorization: Bearer`).
+- Autenticacion con tokens de Supabase Auth (`Authorization: Bearer`) para la
+  web y la app movil; credenciales de dispositivo para el ESP32-S3.
 - Errores uniformes:
 
   ```json
   { "error": { "code": "NOT_FOUND", "message": "...", "details": [] } }
   ```
 
-- La documentacion OpenAPI/Swagger se generara a partir de los contratos
-  aprobados. Aun no esta implementada.
+- La especificacion OpenAPI 3.1.0 se sirve en `GET /api/v1/openapi.json` y la
+  documentacion interactiva autocontenida en `GET /api/v1/docs`. El modulo
+  `openapi` mantiene el documento sin dependencias externas.
 
 ## Persistencia
 
@@ -100,12 +106,15 @@ Modulos previstos: `health` (implementado), `employees`, `credentials`
   `.env` ignorado por Git).
 - El cliente Prisma se instancia de forma perezosa: la API puede arrancar y
   responder `/api/v1/health` sin credenciales de base de datos.
-- El modelo de datos definitivo esta pendiente de aprobacion. Ver
-  [DATABASE.md](DATABASE.md).
+- El modelo de datos esta definido en `apps/api/prisma/schema.prisma` y
+  documentado en [DATABASE.md](DATABASE.md), con las decisiones de integridad
+  en ADR-0008 a ADR-0012.
+- El seed (`npm run prisma:seed`) es idempotente y garantiza los roles del
+  sistema y las areas base.
 
-## Integracion futura con ESP32-S3
+## Integracion con ESP32-S3
 
-El firmware no forma parte de esta mision. El backend ya contempla los
+El firmware no forma parte de esta mision. El backend ya implementa los
 contratos de sincronizacion (ver [API-CONTRACTS.md](API-CONTRACTS.md)):
 
 - `GET /api/v1/devices/{deviceId}/sync`: el dispositivo descarga empleados,
@@ -120,7 +129,8 @@ Consideraciones de diseno:
   idempotencia.
 - Distincion entre `occurredAt` (momento del evento fisico) y `receivedAt`
   (momento en que el servidor lo recibe).
-- Autenticacion del dispositivo pendiente de definir (token de dispositivo).
+- Autenticacion del dispositivo mediante credenciales emitidas por un
+  administrador (`<tokenId>.<secret>`, ver ADR-0009).
 - Si el dispositivo pierde Internet, sigue validando con su copia local y
   encola eventos.
 
@@ -138,5 +148,6 @@ Consideraciones de diseno:
 - Sin microservicios, sin colas distribuidas, sin Kubernetes.
 - Sin integracion de hardware real en esta etapa; no se simula como si lo
   fuera.
-- Modelo de datos y reglas de permisos aun sujetos a aprobacion.
+- Modelo de datos y reglas de permisos aprobados en ADR-0008 a ADR-0012;
+  cualquier cambio requiere una nueva ADR.
 - La interfaz de usuario sera en espanol; identificadores de codigo en ingles.

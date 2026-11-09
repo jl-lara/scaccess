@@ -1,8 +1,9 @@
 // Esquema Prisma del Sistema de Control de Acceso.
 //
-// El modelo de datos definitivo esta pendiente de aprobacion por el lider
-// tecnico (ver docs/DATABASE.md). Este archivo solo configura el proveedor y
-// el generador para poder preparar Prisma sin ejecutar migraciones.
+// Modelo de datos aprobado por el lider tecnico (ver docs/DATABASE.md y
+// ADR-0008 a ADR-0012). Define las 12 tablas y los 6 enums del sistema.
+// No se ejecutan migraciones contra una base real hasta conectar la instancia
+// de desarrollo.
 
 generator client {
   provider     = "prisma-client"
@@ -12,4 +13,299 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum EmployeeStatus {
+  active
+  inactive
+  suspended
+
+  @@map("employee_status")
+}
+
+enum CredentialStatus {
+  active
+  blocked
+  lost
+  retired
+
+  @@map("credential_status")
+}
+
+enum AccountStatus {
+  active
+  disabled
+
+  @@map("account_status")
+}
+
+enum DeviceStatus {
+  active
+  inactive
+  maintenance
+
+  @@map("device_status")
+}
+
+enum AccessDecision {
+  granted
+  denied
+
+  @@map("access_decision")
+}
+
+enum AccessReason {
+  allowed
+  card_unknown
+  card_blocked
+  card_lost
+  card_retired
+  employee_inactive
+  permission_missing
+  permission_expired
+  permission_outside_schedule
+  area_not_allowed
+  area_inactive
+  device_error
+
+  @@map("access_reason")
+}
+
+// ---------------------------------------------------------------------------
+// Modelos
+// ---------------------------------------------------------------------------
+
+model Employee {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeCode   String           @unique @map("employee_code") @db.VarChar(32)
+  firstName      String           @map("first_name") @db.VarChar(100)
+  lastName       String           @map("last_name") @db.VarChar(100)
+  email          String?          @unique @db.VarChar(320)
+  department     String?          @db.VarChar(100)
+  position       String?          @db.VarChar(100)
+  status         EmployeeStatus   @default(active)
+  hiredAt        DateTime?        @map("hired_at") @db.Date
+  deactivatedAt  DateTime?        @map("deactivated_at") @db.Timestamptz(6)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  userAccount      UserAccount?
+  credentials      Credential[]
+  accessPermissions AccessPermission[]
+  accessEvents     AccessEvent[]
+
+  @@index([status])
+  @@map("employees")
+}
+
+model UserAccount {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authUserId  String        @unique @map("auth_user_id") @db.Uuid
+  employeeId  String?       @unique @map("employee_id") @db.Uuid
+  email       String        @unique @db.VarChar(320)
+  status      AccountStatus @default(active)
+  lastLoginAt DateTime?     @map("last_login_at") @db.Timestamptz(6)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  employee           Employee?         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  userRoles          UserRole[]
+  assignedRoles      UserRole[]         @relation("RoleAssignedBy")
+  grantedPermissions AccessPermission[] @relation("PermissionGrantedBy")
+
+  @@map("user_accounts")
+}
+
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique @db.VarChar(32)
+  name        String   @db.VarChar(100)
+  description String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId       String   @map("user_id") @db.Uuid
+  roleId       String   @map("role_id") @db.Uuid
+  assignedAt   DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  assignedById String?  @map("assigned_by") @db.Uuid
+
+  user       UserAccount  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role       Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  assignedBy UserAccount? @relation("RoleAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model Credential {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId         String           @map("employee_id") @db.Uuid
+  cardUid            String           @unique @map("card_uid") @db.VarChar(32)
+  label              String?          @db.VarChar(64)
+  status             CredentialStatus @default(active)
+  issuedAt           DateTime?        @map("issued_at") @db.Timestamptz(6)
+  deactivatedAt      DateTime?        @map("deactivated_at") @db.Timestamptz(6)
+  deactivationReason String?          @map("deactivation_reason")
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  employee     Employee      @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  accessEvents AccessEvent[]
+
+  @@index([employeeId])
+  @@index([status])
+  @@map("credentials")
+}
+
+model Area {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique @db.VarChar(32)
+  name        String   @db.VarChar(128)
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  timezone    String   @default("America/Tijuana") @db.VarChar(64)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  accessPermissions AccessPermission[]
+  deviceAreas       DeviceArea[]
+  accessEvents      AccessEvent[]
+
+  @@map("areas")
+}
+
+model AccessPermission {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId  String    @map("employee_id") @db.Uuid
+  areaId      String    @map("area_id") @db.Uuid
+  validFrom   DateTime? @map("valid_from") @db.Timestamptz(6)
+  validTo     DateTime? @map("valid_to") @db.Timestamptz(6)
+  schedule    Json?
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+  grantedById String?   @map("granted_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  employee  Employee     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  area      Area         @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  grantedBy UserAccount? @relation("PermissionGrantedBy", fields: [grantedById], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, areaId])
+  @@index([areaId])
+  @@index([validFrom, validTo])
+  @@map("access_permissions")
+}
+
+model AccessDevice {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  deviceCode      String       @unique @map("device_code") @db.VarChar(64)
+  name            String       @db.VarChar(100)
+  location        String?      @db.VarChar(128)
+  status          DeviceStatus @default(active)
+  hardwareModel   String?      @map("hardware_model") @db.VarChar(32)
+  firmwareVersion String?      @map("firmware_version") @db.VarChar(32)
+  configVersion   BigInt       @default(0) @map("config_version")
+  lastSeenAt      DateTime?    @map("last_seen_at") @db.Timestamptz(6)
+  provisionedAt   DateTime?    @map("provisioned_at") @db.Timestamptz(6)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  deviceAreas  DeviceArea[]
+  syncState    DeviceSyncState?
+  credentials  DeviceCredential[]
+  accessEvents AccessEvent[]
+
+  @@index([status])
+  @@index([lastSeenAt])
+  @@map("access_devices")
+}
+
+model DeviceArea {
+  deviceId  String   @map("device_id") @db.Uuid
+  areaId    String   @map("area_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  device AccessDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  area   Area         @relation(fields: [areaId], references: [id], onDelete: Restrict)
+
+  @@id([deviceId, areaId])
+  @@index([areaId])
+  @@map("device_areas")
+}
+
+model DeviceSyncState {
+  deviceId                 String    @id @map("device_id") @db.Uuid
+  configVersion            BigInt    @default(0) @map("config_version")
+  lastSyncRequestedAt      DateTime? @map("last_sync_requested_at") @db.Timestamptz(6)
+  lastSyncCompletedAt      DateTime? @map("last_sync_completed_at") @db.Timestamptz(6)
+  lastEventReceivedAt      DateTime? @map("last_event_received_at") @db.Timestamptz(6)
+  lastEventOccurredAt      DateTime? @map("last_event_occurred_at") @db.Timestamptz(6)
+  pendingEventCountReported Int?     @map("pending_event_count_reported")
+  lastErrorCode            String?   @map("last_error_code") @db.VarChar(64)
+  lastErrorAt              DateTime? @map("last_error_at") @db.Timestamptz(6)
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  device AccessDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+
+  @@map("device_sync_states")
+}
+
+model DeviceCredential {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  deviceId   String    @map("device_id") @db.Uuid
+  tokenId    String    @unique @map("token_id") @db.VarChar(64)
+  secretHash String    @map("secret_hash")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(6)
+
+  device AccessDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+
+  @@index([deviceId])
+  @@map("device_credentials")
+}
+
+model AccessEvent {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  deviceId       String         @map("device_id") @db.Uuid
+  clientEventId  String         @map("client_event_id") @db.VarChar(64)
+  deviceEpoch    String?        @map("device_epoch") @db.Uuid
+  cardUid        String         @map("card_uid") @db.VarChar(32)
+  employeeId     String?        @map("employee_id") @db.Uuid
+  credentialId   String?        @map("credential_id") @db.Uuid
+  areaId         String         @map("area_id") @db.Uuid
+  decision       AccessDecision
+  reasonCode     AccessReason   @map("reason_code")
+  occurredAt     DateTime       @map("occurred_at") @db.Timestamptz(6)
+  receivedAt     DateTime       @default(now()) @map("received_at") @db.Timestamptz(6)
+  deviceSequence BigInt?        @map("device_sequence")
+  metadata       Json?
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  device     AccessDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  employee   Employee?    @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  credential Credential?  @relation(fields: [credentialId], references: [id], onDelete: Restrict)
+  area       Area         @relation(fields: [areaId], references: [id], onDelete: Restrict)
+
+  @@unique([deviceId, clientEventId])
+  @@unique([deviceId, deviceSequence])
+  @@index([occurredAt(sort: Desc)])
+  @@index([employeeId, occurredAt(sort: Desc)])
+  @@index([deviceId, occurredAt(sort: Desc)])
+  @@index([areaId, occurredAt(sort: Desc)])
+  @@index([receivedAt])
+  @@map("access_events")
 }
