@@ -1,0 +1,36 @@
+# Blueprint de Render para el backend del Sistema de Control de Acceso.
+# El servicio se construye y ejecuta como contenedor Docker (runtime: docker).
+# Plan gratuito: el servicio se suspende tras 15 minutos de inactividad.
+# Documentacion: docs/DEVELOPMENT.md y docs/adr/0013-docker-containerization.md
+services:
+  - type: web
+    name: scaccess-api
+    runtime: docker
+    plan: free
+    # La imagen se construye con el Dockerfile multi-etapa de la raiz del
+    # monorepo. El propio Dockerfile fija node:22-alpine, compila TypeScript y
+    # define el CMD; por eso no se usan buildCommand, startCommand ni
+    # NODE_VERSION con runtime: docker.
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Coincide con el puerto expuesto por la imagen y con el HEALTHCHECK.
+      - key: PORT
+        value: 3000
+      # Valores secretos: Render los solicita al crear el servicio y no los
+      # sincroniza con otros servicios del Blueprint.
+      - key: CORS_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
