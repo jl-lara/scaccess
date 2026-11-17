@@ -6,13 +6,15 @@
   "type": "module",
   "workspaces": [
     "packages/*",
-    "apps/api"
+    "apps/api",
+    "apps/admin"
   ],
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
     "dev": "npm run dev --workspace @scaccess/api",
+    "dev:admin": "npm run dev --workspace @scaccess/admin",
     "start": "npm run start --workspace @scaccess/api",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
