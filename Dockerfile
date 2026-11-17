@@ -11,7 +11,7 @@ COPY apps/api/package.json ./apps/api/package.json
 COPY apps/api/prisma.config.ts ./apps/api/prisma.config.ts
 COPY apps/api/prisma/schema.prisma ./apps/api/prisma/schema.prisma
 
-RUN npm ci --include=dev
+RUN npm ci --include=dev --workspace=@scaccess/shared --workspace=@scaccess/api --include-workspace-root
 
 # Stage 2: compile @scaccess/shared and @scaccess/api, then drop dev
 # dependencies so only production packages remain in node_modules.
