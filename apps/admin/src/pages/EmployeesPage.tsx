@@ -118,8 +118,7 @@ export function EmployeesPage() {
         <div>
           <h1 className="page-title">Empleados</h1>
           <p className="page-description">
-            Directorio de personas acreditadas para operar en las areas protegidas. Edita sus datos
-            y su estado operativo sin alterar el historial de accesos.
+            Directorio de personal acreditado y estado operativo.
           </p>
         </div>
         {canWriteCatalog ? (

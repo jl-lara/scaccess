@@ -133,8 +133,7 @@ export function DevicesPage() {
         <div>
           <h1 className="page-title">Controladores ESP32-S3</h1>
           <p className="page-description">
-            Lectores fisicos que validan accesos de forma offline. Revisa su configuracion,
-            conectividad y estado de sincronizacion antes de operar un area.
+            Controladores fisicos ESP32-S3, areas asignadas y estado de sincronizacion.
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
@@ -222,9 +221,6 @@ export function DevicesPage() {
             {loading
               ? 'Consultando controladores…'
               : `${pagination.total} controladores registrados`}
-          </span>
-          <span className="table-meta">
-            La ultima conexion depende del reloj del servidor, no del lector.
           </span>
         </div>
 

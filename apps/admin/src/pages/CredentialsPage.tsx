@@ -167,8 +167,7 @@ export function CredentialsPage() {
         <div>
           <h1 className="page-title">Tarjetas RFID</h1>
           <p className="page-description">
-            Inventario de credenciales fisicas vinculadas a empleados. Una tarjeta bloqueada,
-            extraviada o retirada deja de conceder acceso en el siguiente intento.
+            Inventario de tarjetas RFID vinculadas a empleados.
           </p>
         </div>
         {canWriteCatalog ? (

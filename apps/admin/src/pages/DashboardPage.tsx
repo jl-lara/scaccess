@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   Users,
   XCircle,
+  type LucideIcon,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type {
@@ -22,6 +23,7 @@ import type {
   AccessReason,
   AreaDto,
   DashboardSummaryDto,
+  DeviceStatus,
   EmployeeDto,
 } from '@scaccess/shared'
 import { StatusBadge } from '../components/ui/StatusBadge'
@@ -180,290 +182,156 @@ function resolveEventReasonCode(event: AccessEventDto): string {
   return extension.decisionReason ?? event.reasonCode
 }
 
-const KPI_VALUE_STYLE: CSSProperties = { fontVariantNumeric: 'tabular-nums' }
-const KPI_LINK_STYLE: CSSProperties = {
-  color: 'var(--accent-primary-hover)',
-  fontWeight: 600,
-  textDecoration: 'underline',
-  textUnderlineOffset: '2px',
-}
-const LEGEND_ROW_STYLE: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  flexWrap: 'wrap',
-  gap: '0.5rem 1rem',
-  fontSize: '0.78rem',
-  color: 'var(--text-secondary)',
-  marginBottom: '1rem',
-}
-const LEGEND_ITEM_STYLE: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.4rem',
-}
-const DOT_STYLE: CSSProperties = {
-  display: 'inline-block',
-  width: '8px',
-  height: '8px',
-  borderRadius: '999px',
-}
-const GRANTED_DOT_STYLE: CSSProperties = {
-  ...DOT_STYLE,
-  backgroundColor: 'var(--status-granted)',
-}
-const DENIED_DOT_STYLE: CSSProperties = {
-  ...DOT_STYLE,
-  backgroundColor: 'var(--status-denied)',
-}
-const QUICK_ACTIONS_STYLE: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  gap: '0.55rem',
-  marginBottom: '1.5rem',
-}
-const QUICK_ACTIONS_LABEL_STYLE: CSSProperties = {
-  marginRight: '0.25rem',
-  fontSize: '0.72rem',
-  fontWeight: 600,
-  letterSpacing: '0.04em',
-  color: 'var(--text-muted)',
-}
-const DEVICE_ROW_STYLE: CSSProperties = {
-  padding: '0.85rem 1rem',
-  borderRadius: 'var(--radius-sm)',
-  backgroundColor: 'var(--bg-surface-elevated)',
-  border: '1px solid var(--border-subtle)',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.4rem',
-}
-const DEVICE_ROW_HEADER_STYLE: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.5rem',
-}
-const DEVICE_ROW_META_STYLE: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  flexWrap: 'wrap',
-  gap: '0.25rem 0.75rem',
-  fontSize: '0.78rem',
-  color: 'var(--text-secondary)',
+const MAX_VISIBLE_DEVICES = 5
+
+interface KpiCardItem {
+  label: string
+  Icon: LucideIcon
+  value: number | string
+  meta: string
+  hoverDetails: string[]
+  to: string
+  linkText: string
+  linkAriaLabel: string
+  variant?: 'variant-granted' | 'variant-denied' | 'variant-warning'
 }
 
-const CHART_HEADER_STYLE: CSSProperties = {
-  display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
-  flexWrap: 'wrap',
-  gap: '0.75rem 1rem',
-  marginBottom: '1rem',
+interface BuildKpiCardsParams {
+  summary: DashboardSummaryDto | null
+  hasRecentActivity: boolean
+  grantedPct: number
+  deniedPct: number
+  outOfSync: number
+  total24h: number
+  activeAreasCount: number
+  recentGrantedCount: number
+  topDeniedReasonLabel: string
 }
-const CHART_SUBTITLE_STYLE: CSSProperties = {
-  margin: '0.35rem 0 0',
-  maxWidth: '72ch',
-  color: 'var(--text-secondary)',
-  fontSize: '0.8rem',
-  textWrap: 'pretty',
+
+function deviceBadgeVariant(status: DeviceStatus): 'success' | 'warning' | 'neutral' {
+  if (status === 'active') return 'success'
+  if (status === 'maintenance') return 'warning'
+  return 'neutral'
 }
-const CHART_GRID_STYLE: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))',
-  alignItems: 'start',
-  gap: '1rem',
+
+function buildKpiCards({
+  summary,
+  hasRecentActivity,
+  grantedPct,
+  deniedPct,
+  outOfSync,
+  total24h,
+  activeAreasCount,
+  recentGrantedCount,
+  topDeniedReasonLabel,
+}: BuildKpiCardsParams): KpiCardItem[] {
+  const inactiveEmployees = summary
+    ? Math.max(0, summary.employees.total - summary.employees.active)
+    : '—'
+  const activeEmployeesPct =
+    summary && summary.employees.total > 0
+      ? Math.round((summary.employees.active / summary.employees.total) * 100)
+      : 0
+  const credentialCoveragePct =
+    summary && summary.employees.active > 0
+      ? Math.min(100, Math.round((summary.credentials.active / summary.employees.active) * 100))
+      : 0
+  const inactiveAreas = summary ? Math.max(0, summary.areas.total - summary.areas.active) : '—'
+  const syncedDevices = summary ? Math.max(0, summary.devices.active - outOfSync) : '—'
+  const inactiveDevices = summary
+    ? Math.max(0, summary.devices.total - summary.devices.active)
+    : '—'
+
+  return [
+    {
+      label: 'Empleados activos',
+      Icon: Users,
+      value: summary ? summary.employees.active : '—',
+      meta: `Total registrados: ${summary ? summary.employees.total : '—'}`,
+      hoverDetails: [
+        `Inactivos / baja: ${inactiveEmployees}`,
+        `Personal activo: ${activeEmployeesPct}% del padron`,
+      ],
+      to: '/employees',
+      linkText: 'Gestionar',
+      linkAriaLabel: 'Gestionar empleados',
+    },
+    {
+      label: 'Tarjetas RFID activas',
+      Icon: CreditCard,
+      value: summary ? summary.credentials.active : '—',
+      meta: `Bloqueadas / extraviadas: ${summary ? summary.credentials.blockedOrLost : '—'}`,
+      hoverDetails: [
+        `Total emitidas: ${summary ? summary.credentials.total : '—'}`,
+        `Cobertura por empleado activo: ${credentialCoveragePct}%`,
+      ],
+      to: '/credentials',
+      linkText: 'Ver tarjetas',
+      linkAriaLabel: 'Ver tarjetas RFID',
+    },
+    {
+      label: 'Areas protegidas',
+      Icon: Building2,
+      value: summary ? summary.areas.active : '—',
+      meta: `Total configuradas: ${summary ? summary.areas.total : '—'}`,
+      hoverDetails: [
+        `Areas inactivas: ${inactiveAreas}`,
+        `Con actividad reciente: ${activeAreasCount} area(s)`,
+      ],
+      to: '/areas',
+      linkText: 'Ver areas',
+      linkAriaLabel: 'Ver areas protegidas',
+    },
+    {
+      label: 'Controladores ESP32',
+      Icon: Cpu,
+      value: summary ? `${summary.devices.active}/${summary.devices.total}` : '—',
+      meta: `Desactualizados: ${summary ? outOfSync : '—'}`,
+      hoverDetails: [
+        `Sincronizados al dia: ${syncedDevices}`,
+        `Inactivos / mantenimiento: ${inactiveDevices}`,
+      ],
+      to: '/devices',
+      linkText: 'Sincronizacion',
+      linkAriaLabel: 'Revisar sincronizacion de controladores',
+      variant: summary && outOfSync > 0 ? 'variant-warning' : 'variant-granted',
+    },
+    {
+      label: 'Accesos concedidos (24h)',
+      Icon: CheckCircle2,
+      value: summary ? summary.recentEvents24h.granted : '—',
+      meta: hasRecentActivity ? `${grantedPct}% de intentos recientes` : 'Sin actividad reciente',
+      hoverDetails: [
+        `Total evaluados (24h): ${total24h}`,
+        `En muestra reciente: ${recentGrantedCount} permitido(s)`,
+      ],
+      to: '/access-events',
+      linkText: 'Auditar',
+      linkAriaLabel: 'Auditar accesos concedidos',
+      variant: 'variant-granted',
+    },
+    {
+      label: 'Accesos denegados (24h)',
+      Icon: ShieldAlert,
+      value: summary ? summary.recentEvents24h.denied : '—',
+      meta: hasRecentActivity ? `${deniedPct}% de rechazos (24h)` : 'Sin rechazos recientes',
+      hoverDetails: [
+        `Total evaluados (24h): ${total24h}`,
+        `Motivo principal: ${topDeniedReasonLabel}`,
+      ],
+      to: '/access-events',
+      linkText: 'Ver rechazos',
+      linkAriaLabel: 'Ver accesos denegados',
+      variant: 'variant-denied',
+    },
+  ]
 }
-const CHART_COLUMN_STYLE: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1rem',
-  minWidth: 0,
-}
-const CHART_PANEL_STYLE: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.8rem',
-  minWidth: 0,
-  padding: '1rem',
-  borderRadius: 'var(--radius-md)',
-  backgroundColor: 'var(--bg-surface-elevated)',
-  border: '1px solid var(--border-subtle)',
-}
-const CHART_PANEL_TITLE_STYLE: CSSProperties = {
-  margin: 0,
-  color: 'var(--text-primary)',
-  fontSize: '0.84rem',
-  fontWeight: 700,
-}
-const CHART_PANEL_META_STYLE: CSSProperties = {
-  margin: '0.2rem 0 0',
-  color: 'var(--text-muted)',
-  fontSize: '0.73rem',
-}
-const CHART_LEGEND_ROW_STYLE: CSSProperties = {
-  ...LEGEND_ROW_STYLE,
-  justifyContent: 'flex-start',
-  gap: '0.45rem 0.9rem',
-  marginBottom: 0,
-  fontSize: '0.72rem',
-}
-const AREA_LIST_STYLE: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.75rem',
-}
-const AREA_ROW_STYLE: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.35rem',
-}
-const AREA_ROW_HEADER_STYLE: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.5rem',
-}
-const AREA_NAME_STYLE: CSSProperties = {
-  minWidth: 0,
-  overflow: 'hidden',
-  color: 'var(--text-primary)',
-  fontSize: '0.78rem',
-  fontWeight: 600,
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-}
-const AREA_COUNTS_STYLE: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  flexShrink: 0,
-  gap: '0.3rem',
-}
-const CHART_COUNT_STYLE: CSSProperties = {
-  fontVariantNumeric: 'tabular-nums',
-}
-const AREA_TRACK_STYLE: CSSProperties = {
-  display: 'flex',
-  height: '12px',
-  overflow: 'hidden',
-  borderRadius: '999px',
-  backgroundColor: 'var(--bg-surface)',
-  border: '1px solid var(--border-subtle)',
-}
-const AREA_SEGMENT_STYLE: CSSProperties = {
-  height: '100%',
-  transition: 'width 0.25s ease',
-}
-const PULSE_SCROLL_STYLE: CSSProperties = {
-  overflowX: 'auto',
-  paddingBottom: '0.2rem',
-}
-const PULSE_CHART_STYLE: CSSProperties = {
-  display: 'flex',
-  alignItems: 'flex-end',
-  gap: '0.3rem',
-  minWidth: '420px',
-  minHeight: '150px',
-}
-const PULSE_COLUMN_STYLE: CSSProperties = {
-  display: 'flex',
-  flex: '1 1 28px',
-  minWidth: '18px',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'flex-end',
-  gap: '0.25rem',
-}
-const PULSE_DIRECTION_STYLE: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  color: 'var(--text-secondary)',
-}
-const PULSE_TRACK_STYLE: CSSProperties = {
-  display: 'flex',
-  alignItems: 'flex-end',
-  width: '100%',
-  height: '104px',
-  overflow: 'hidden',
-  borderRadius: '5px 5px 3px 3px',
-  backgroundColor: 'var(--bg-surface)',
-  border: '1px solid var(--border-subtle)',
-}
-const PULSE_BAR_STYLE: CSSProperties = {
-  width: '100%',
-  borderRadius: '4px 4px 0 0',
-  transition: 'height 0.25s ease',
-}
-const PULSE_TIME_STYLE: CSSProperties = {
-  color: 'var(--text-muted)',
-  fontFamily: 'var(--font-mono)',
-  fontSize: '0.6rem',
-  fontVariantNumeric: 'tabular-nums',
-  whiteSpace: 'nowrap',
-}
-const REASON_LIST_STYLE: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.55rem',
-}
-const REASON_ROW_STYLE: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.3rem',
-}
-const REASON_ROW_HEADER_STYLE: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.5rem',
-}
-const REASON_LABEL_STYLE: CSSProperties = {
-  minWidth: 0,
-  overflow: 'hidden',
-  color: 'var(--text-primary)',
-  fontSize: '0.76rem',
-  fontWeight: 600,
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-}
-const REASON_COUNT_STYLE: CSSProperties = {
-  color: 'var(--text-secondary)',
-  fontFamily: 'var(--font-mono)',
-  fontSize: '0.72rem',
-  fontVariantNumeric: 'tabular-nums',
-}
-const REASON_TRACK_STYLE: CSSProperties = {
-  height: '7px',
-  overflow: 'hidden',
-  borderRadius: '999px',
-  backgroundColor: 'var(--bg-surface)',
-  border: '1px solid var(--border-subtle)',
-}
-const REASON_FILL_STYLE: CSSProperties = {
-  height: '100%',
-  borderRadius: '999px',
-  transition: 'width 0.25s ease',
-}
-const CHART_STATE_STYLE: CSSProperties = {
-  padding: '1.5rem 1rem',
-  borderRadius: 'var(--radius-md)',
-  backgroundColor: 'var(--bg-surface-elevated)',
-  border: '1px dashed var(--border-subtle)',
-  textAlign: 'center',
-}
-const CHART_STATE_TITLE_STYLE: CSSProperties = {
-  margin: 0,
-  color: 'var(--text-primary)',
-  fontSize: '0.9rem',
-  fontWeight: 600,
-}
-const CHART_STATE_DESCRIPTION_STYLE: CSSProperties = {
-  margin: '0.35rem auto 0',
-  maxWidth: '58ch',
-  color: 'var(--text-muted)',
-  fontSize: '0.78rem',
+
+function isFocusWithinTarget(
+  currentTarget: EventTarget & HTMLElement,
+  relatedTarget: EventTarget | null,
+): boolean {
+  return relatedTarget instanceof Node && currentTarget.contains(relatedTarget)
 }
 
 export function DashboardPage() {
@@ -475,6 +343,11 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
+  const [hoveredKpi, setHoveredKpi] = useState<string | null>(null)
+  const [hoveredArea, setHoveredArea] = useState<string | null>(null)
+  const [hoveredPulseId, setHoveredPulseId] = useState<string | null>(null)
+  const [hoveredReason, setHoveredReason] = useState<string | null>(null)
+  const [hoveredDeviceId, setHoveredDeviceId] = useState<string | null>(null)
 
   const loadDashboard = useCallback(async () => {
     setLoading(true)
@@ -604,25 +477,43 @@ export function DashboardPage() {
   const hasRecentActivity = total24h > 0
   const outOfSync = summary ? summary.devices.outOfSync : 0
   const maxReasonTotal = reasonActivity[0]?.total ?? 0
+  const visibleDevices = devices.slice(0, MAX_VISIBLE_DEVICES)
+  const recentGrantedCount = useMemo(
+    () => recentEvents.filter((ev) => ev.decision === 'granted').length,
+    [recentEvents],
+  )
+  const topDeniedReasonLabel = useMemo(() => {
+    const topDenied = reasonActivity
+      .filter((bucket) => bucket.denied > 0)
+      .toSorted(
+        (left, right) => right.denied - left.denied || left.label.localeCompare(right.label, 'es'),
+      )[0]
+    return topDenied ? topDenied.label : 'Sin rechazos en muestra'
+  }, [reasonActivity])
+  const inspectedPulseEvent =
+    timelineEvents.find((item) => item.id === hoveredPulseId) ?? timelineEvents[0] ?? null
+  const kpiCards = buildKpiCards({
+    summary,
+    hasRecentActivity,
+    grantedPct,
+    deniedPct,
+    outOfSync,
+    total24h,
+    activeAreasCount: areaActivity.length,
+    recentGrantedCount,
+    topDeniedReasonLabel,
+  })
 
   return (
-    <div>
+    <div className="dashboard-stack">
       <div className="page-header">
         <div>
           <h1 className="page-title">Centro de Monitoreo Operativo</h1>
           <p className="page-description">
-            Estado en tiempo real de empleados acreditados, lectores fisicos ESP32-S3 y decisiones
-            de acceso en las ultimas 24 horas.
+            Resumen operativo de accesos, acreditaciones y controladores ESP32-S3 (24h).
           </p>
         </div>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            gap: '0.35rem',
-          }}
-        >
+        <div className="dashboard-header-actions">
           <button
             type="button"
             className="btn btn-secondary"
@@ -646,8 +537,12 @@ export function DashboardPage() {
 
       {error ? (
         <div className="alert-banner error" role="alert" aria-live="assertive" aria-atomic="true">
-          <span>{error}</span>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void loadDashboard()}>
+          <span className="dashboard-alert-copy">{error}</span>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => void loadDashboard()}
+          >
             Reintentar
           </button>
         </div>
@@ -655,7 +550,7 @@ export function DashboardPage() {
 
       {summary && summary.devices.outOfSync > 0 ? (
         <div className="alert-banner warning" role="status">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <div className="dashboard-alert-copy">
             <AlertTriangle size={18} aria-hidden="true" />
             <span>
               Atencion operativa: <strong>{summary.devices.outOfSync}</strong> controlador(es)
@@ -669,157 +564,390 @@ export function DashboardPage() {
       ) : null}
 
       <section className="kpi-grid" aria-label="Indicadores clave del sistema" aria-busy={loading}>
-        <div className="kpi-card">
-          <div className="kpi-header">
-            <span>Empleados activos</span>
-            <Users size={17} aria-hidden="true" />
-          </div>
-          <div className="kpi-value" style={KPI_VALUE_STYLE}>
-            {summary ? summary.employees.active : '—'}
-          </div>
-          <div className="kpi-meta">
-            <span>Total registrados: {summary ? summary.employees.total : '—'}</span>
-            <Link to="/employees" style={KPI_LINK_STYLE} aria-label="Gestionar empleados">
-              Gestionar
-            </Link>
-          </div>
-        </div>
+        {kpiCards.map((card) => {
+          const isHovered = hoveredKpi === card.label
+          const cardClassName = [
+            'kpi-card',
+            card.variant,
+            isHovered ? 'is-hovered' : null,
+          ]
+            .filter(Boolean)
+            .join(' ')
 
-        <div className="kpi-card">
-          <div className="kpi-header">
-            <span>Tarjetas RFID activas</span>
-            <CreditCard size={17} aria-hidden="true" />
-          </div>
-          <div className="kpi-value" style={KPI_VALUE_STYLE}>
-            {summary ? summary.credentials.active : '—'}
-          </div>
-          <div className="kpi-meta">
-            <span>
-              Bloqueadas / extraviadas: {summary ? summary.credentials.blockedOrLost : '—'}
-            </span>
-            <Link to="/credentials" style={KPI_LINK_STYLE} aria-label="Ver tarjetas RFID">
-              Ver tarjetas
-            </Link>
-          </div>
-        </div>
-
-        <div className="kpi-card">
-          <div className="kpi-header">
-            <span>Areas protegidas</span>
-            <Building2 size={17} aria-hidden="true" />
-          </div>
-          <div className="kpi-value" style={KPI_VALUE_STYLE}>
-            {summary ? summary.areas.active : '—'}
-          </div>
-          <div className="kpi-meta">
-            <span>Total configuradas: {summary ? summary.areas.total : '—'}</span>
-            <Link to="/areas" style={KPI_LINK_STYLE} aria-label="Ver areas protegidas">
-              Ver areas
-            </Link>
-          </div>
-        </div>
-
-        <div className={`kpi-card ${summary && outOfSync > 0 ? 'variant-warning' : 'variant-granted'}`}>
-          <div className="kpi-header">
-            <span>Controladores ESP32</span>
-            <Cpu size={17} aria-hidden="true" />
-          </div>
-          <div className="kpi-value" style={KPI_VALUE_STYLE}>
-            {summary ? `${summary.devices.active}/${summary.devices.total}` : '—'}
-          </div>
-          <div className="kpi-meta">
-            <span>Desactualizados: {summary ? outOfSync : '—'}</span>
-            <Link
-              to="/devices"
-              style={KPI_LINK_STYLE}
-              aria-label="Revisar sincronizacion de controladores"
+          return (
+            <div
+              key={card.label}
+              className={cardClassName}
+              onMouseEnter={() => setHoveredKpi(card.label)}
+              onMouseLeave={() => setHoveredKpi((cur) => (cur === card.label ? null : cur))}
+              onFocus={() => setHoveredKpi(card.label)}
+              onBlur={(e) => {
+                if (!isFocusWithinTarget(e.currentTarget, e.relatedTarget)) {
+                  setHoveredKpi((cur) => (cur === card.label ? null : cur))
+                }
+              }}
             >
-              Sincronizacion
-            </Link>
-          </div>
-        </div>
-
-        <div className="kpi-card variant-granted">
-          <div className="kpi-header">
-            <span>Accesos concedidos (24h)</span>
-            <CheckCircle2 size={17} aria-hidden="true" />
-          </div>
-          <div className="kpi-value" style={KPI_VALUE_STYLE}>
-            {summary ? summary.recentEvents24h.granted : '—'}
-          </div>
-          <div className="kpi-meta">
-            <span>{hasRecentActivity ? `${grantedPct}% de intentos recientes` : 'Sin actividad reciente'}</span>
-            <Link to="/access-events" style={KPI_LINK_STYLE} aria-label="Auditar accesos concedidos">
-              Auditar
-            </Link>
-          </div>
-        </div>
-
-        <div className="kpi-card variant-denied">
-          <div className="kpi-header">
-            <span>Accesos denegados (24h)</span>
-            <ShieldAlert size={17} aria-hidden="true" />
-          </div>
-          <div className="kpi-value" style={KPI_VALUE_STYLE}>
-            {summary ? summary.recentEvents24h.denied : '—'}
-          </div>
-          <div className="kpi-meta">
-            <span>{hasRecentActivity ? `${deniedPct}% de rechazos (24h)` : 'Sin rechazos recientes'}</span>
-            <Link to="/access-events" style={KPI_LINK_STYLE} aria-label="Ver accesos denegados">
-              Ver rechazos
-            </Link>
-          </div>
-        </div>
+              <div className="kpi-header">
+                <span>{card.label}</span>
+                <card.Icon size={17} aria-hidden="true" />
+              </div>
+              <div className="kpi-value">{card.value}</div>
+              <div className="kpi-meta">
+                <span>{card.meta}</span>
+                <Link to={card.to} className="kpi-link" aria-label={card.linkAriaLabel}>
+                  {card.linkText}
+                </Link>
+              </div>
+              <div className="kpi-detail-slot">
+                {isHovered ? (
+                  <div
+                    className="kpi-hover-details"
+                    role="region"
+                    aria-label={`Detalle de ${card.label}`}
+                  >
+                    {card.hoverDetails.map((detail) => (
+                      <p key={detail} className="kpi-hover-detail-item">
+                        {detail}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="kpi-detail-hint" aria-hidden="true">
+                    Desglose operativo
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        })}
       </section>
 
-      <nav aria-label="Accesos rapidos" style={QUICK_ACTIONS_STYLE}>
-        <span style={QUICK_ACTIONS_LABEL_STYLE}>Accesos rapidos</span>
-        <Link to="/access-events" className="btn btn-secondary btn-sm">
-          <Activity size={14} aria-hidden="true" />
-          Bitacora de accesos
-        </Link>
-        <Link to="/devices" className="btn btn-secondary btn-sm">
-          <Cpu size={14} aria-hidden="true" />
-          Controladores ESP32
-        </Link>
-      </nav>
-
       <div className="dashboard-split">
-        <section className="surface-card" aria-label="Balance de decisiones en muestra reciente">
-          <div className="surface-card-header">
-            <h2 className="surface-card-title">
-              <Activity size={18} aria-hidden="true" />
-              <span>Balance de decisiones en muestra reciente</span>
-            </h2>
+        <section
+          className="surface-card"
+          aria-label="Últimos eventos de acceso registrados"
+          aria-busy={loading}
+        >
+          <div className="dashboard-chart-header">
+            <div>
+              <h2 className="surface-card-title">
+                <Activity size={18} aria-hidden="true" />
+                <span>Últimos eventos de acceso registrados</span>
+              </h2>
+              <p className="chart-subpanel-meta">
+                Actividad por área, pulso temporal y motivos de decisión.
+              </p>
+            </div>
+            <Link to="/access-events" className="btn btn-secondary btn-sm">
+              Ver bitácora completa <ArrowRight size={14} aria-hidden="true" />
+            </Link>
           </div>
 
-          {hasRecentActivity ? (
-            <>
-              <div
-                className="ratio-bar-track"
-                role="img"
-                aria-label={`Proporcion de accesos de las ultimas 24 horas: ${summary?.recentEvents24h.granted ?? 0} concedidos (${grantedPct}%) y ${summary?.recentEvents24h.denied ?? 0} denegados (${deniedPct}%).`}
-              >
-                <div className="ratio-bar-granted" style={{ width: `${grantedPct}%` }} />
-                <div className="ratio-bar-denied" style={{ width: `${deniedPct}%` }} />
+          <div className="dashboard-ratio-strip">
+            {hasRecentActivity ? (
+              <>
+                <div
+                  className="ratio-bar-track"
+                  role="img"
+                  aria-label={`Proporcion de accesos de las ultimas 24 horas: ${summary?.recentEvents24h.granted ?? 0} concedidos (${grantedPct}%) y ${summary?.recentEvents24h.denied ?? 0} denegados (${deniedPct}%).`}
+                >
+                  <div
+                    className="ratio-bar-granted"
+                    style={{ width: `${grantedPct}%` }}
+                    title={`Concedidos: ${summary?.recentEvents24h.granted ?? 0} (${grantedPct}%)`}
+                  />
+                  <div
+                    className="ratio-bar-denied"
+                    style={{ width: `${deniedPct}%` }}
+                    title={`Denegados: ${summary?.recentEvents24h.denied ?? 0} (${deniedPct}%)`}
+                  />
+                </div>
+                <div className="dashboard-legend">
+                  <span className="legend-item">
+                    <span className="legend-dot legend-dot--granted" aria-hidden="true" />
+                    Concedidos: <strong>{summary?.recentEvents24h.granted ?? 0}</strong> (
+                    {grantedPct}%)
+                  </span>
+                  <span className="legend-item">
+                    <span className="legend-dot legend-dot--denied" aria-hidden="true" />
+                    Denegados: <strong>{summary?.recentEvents24h.denied ?? 0}</strong> ({deniedPct}
+                    %)
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className="table-meta" role="status">
+                {loading
+                  ? 'Consultando actividad de las ultimas 24 horas…'
+                  : 'Sin eventos de acceso en las ultimas 24 horas.'}
+              </p>
+            )}
+          </div>
+
+          {recentEvents.length > 0 ? (
+            <div
+              role="img"
+              aria-label="Gráfica de últimos eventos de acceso"
+              className="dashboard-chart-grid"
+            >
+              <div className="chart-subpanel">
+                <div>
+                  <h3 className="chart-subpanel-title">
+                    Accesos permitidos vs. denegados por área
+                  </h3>
+                  <p className="chart-subpanel-meta">
+                    {recentEvents.length} lecturas recientes agrupadas por área física (máximo 6).
+                  </p>
+                </div>
+
+                <div className="dashboard-legend">
+                  <span className="legend-item">
+                    <span className="legend-dot legend-dot--granted" aria-hidden="true" />
+                    Permitidos
+                  </span>
+                  <span className="legend-item">
+                    <span className="legend-dot legend-dot--denied" aria-hidden="true" />
+                    Denegados
+                  </span>
+                </div>
+
+                <div className="area-list">
+                  {areaActivity.map((bucket) => {
+                    const grantedWidth =
+                      bucket.total > 0 ? (bucket.granted / bucket.total) * 100 : 0
+                    const deniedWidth = bucket.total > 0 ? (bucket.denied / bucket.total) * 100 : 0
+                    const isAreaHovered = hoveredArea === bucket.areaName
+                    const areaGrantedPct =
+                      bucket.total > 0 ? Math.round((bucket.granted / bucket.total) * 100) : 0
+
+                    return (
+                      <div
+                        key={bucket.areaName}
+                        className={isAreaHovered ? 'area-row is-hovered' : 'area-row'}
+                        onMouseEnter={() => setHoveredArea(bucket.areaName)}
+                        onMouseLeave={() =>
+                          setHoveredArea((cur) => (cur === bucket.areaName ? null : cur))
+                        }
+                      >
+                        <div className="area-row-header">
+                          <span className="area-name" title={bucket.areaName}>
+                            {bucket.areaName}
+                          </span>
+                          <span className="area-counts">
+                            <span
+                              className="status-badge success"
+                              title={`${bucket.granted} accesos permitidos`}
+                            >
+                              <CheckCircle2 size={11} aria-hidden="true" />
+                              {bucket.granted}
+                            </span>
+                            <span
+                              className="status-badge danger"
+                              title={`${bucket.denied} accesos denegados`}
+                            >
+                              <XCircle size={11} aria-hidden="true" />
+                              {bucket.denied}
+                            </span>
+                          </span>
+                        </div>
+                        <div
+                          className="area-track"
+                          title={`${bucket.areaName}: ${bucket.granted} permitidos y ${bucket.denied} denegados de ${bucket.total} eventos`}
+                        >
+                          {grantedWidth > 0 ? (
+                            <span
+                              className="area-segment area-segment--granted"
+                              style={{ width: `${grantedWidth}%` }}
+                              title={`Permitidos: ${bucket.granted}`}
+                            />
+                          ) : null}
+                          {deniedWidth > 0 ? (
+                            <span
+                              className="area-segment area-segment--denied"
+                              style={{ width: `${deniedWidth}%` }}
+                              title={`Denegados: ${bucket.denied}`}
+                            />
+                          ) : null}
+                        </div>
+                        <div className="area-detail-slot">
+                          {isAreaHovered ? (
+                            <div className="area-row-detail">
+                              {areaGrantedPct}% aprobacion · {bucket.total} lectura(s) recientes
+                            </div>
+                          ) : (
+                            <span className="area-row-hint" aria-hidden="true">
+                              {bucket.granted} permitidos · {bucket.denied} denegados
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-              <div style={LEGEND_ROW_STYLE}>
-                <span style={LEGEND_ITEM_STYLE}>
-                  <span style={GRANTED_DOT_STYLE} aria-hidden="true" />
-                  Concedidos: <strong>{summary?.recentEvents24h.granted ?? 0}</strong> ({grantedPct}%)
-                </span>
-                <span style={LEGEND_ITEM_STYLE}>
-                  <span style={DENIED_DOT_STYLE} aria-hidden="true" />
-                  Denegados: <strong>{summary?.recentEvents24h.denied ?? 0}</strong> ({deniedPct}%)
-                </span>
+
+              <div className="dashboard-chart-column">
+                <div className="chart-subpanel">
+                  <div>
+                    <h3 className="chart-subpanel-title">Pulso de eventos recientes</h3>
+                    <p className="chart-subpanel-meta">
+                      Altura según recencia y color según la decisión.
+                    </p>
+                  </div>
+
+                  <div className="dashboard-legend">
+                    <span className="legend-item">
+                      <span className="legend-dot legend-dot--granted" aria-hidden="true" />
+                      Permitido
+                    </span>
+                    <span className="legend-item">
+                      <span className="legend-dot legend-dot--denied" aria-hidden="true" />
+                      Denegado
+                    </span>
+                    <span className="legend-item">
+                      <LogIn size={12} aria-hidden="true" />
+                      Entrada
+                    </span>
+                    <span className="legend-item">
+                      <LogOut size={12} aria-hidden="true" />
+                      Salida
+                    </span>
+                  </div>
+
+                  <div className="pulse-scroll">
+                    <div className="pulse-chart">
+                      {timelineEvents.map((event) => {
+                        const isPulseActive = inspectedPulseEvent?.id === event.id
+
+                        return (
+                          <div
+                            key={event.id}
+                            className={isPulseActive ? 'pulse-column is-active' : 'pulse-column'}
+                            tabIndex={0}
+                            aria-label={`${event.directionLabel} · ${event.areaName} · ${event.decisionLabel} · ${event.personLabel}`}
+                            onMouseEnter={() => setHoveredPulseId(event.id)}
+                            onFocus={() => setHoveredPulseId(event.id)}
+                          >
+                            <span
+                              className="pulse-direction"
+                              title={event.directionLabel}
+                              aria-label={event.directionLabel}
+                            >
+                              {event.direction === 'entry' ? (
+                                <LogIn size={11} aria-hidden="true" />
+                              ) : (
+                                <LogOut size={11} aria-hidden="true" />
+                              )}
+                            </span>
+                            <div className="pulse-track">
+                              <div
+                                className={`pulse-bar ${
+                                  event.decision === 'granted'
+                                    ? 'pulse-bar--granted'
+                                    : 'pulse-bar--denied'
+                                }`}
+                                title={`${event.directionLabel} · ${formatDateTimeWithSeconds(event.occurredAt)} · ${event.areaName} · ${event.decisionLabel} · ${event.personLabel}`}
+                                style={{ height: `${event.heightPercent}%` }}
+                              />
+                            </div>
+                            <time
+                              dateTime={event.occurredAt}
+                              className="pulse-time"
+                              title={formatDateTimeWithSeconds(event.occurredAt)}
+                            >
+                              {formatClockTime(event.occurredAt)}
+                            </time>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {inspectedPulseEvent ? (
+                    <div className="pulse-inspector" aria-live="polite">
+                      <div className="pulse-inspector-header">
+                        <span className="pulse-inspector-person">
+                          {inspectedPulseEvent.personLabel}
+                        </span>
+                        <StatusBadge
+                          variant={
+                            inspectedPulseEvent.decision === 'granted' ? 'success' : 'danger'
+                          }
+                        >
+                          {inspectedPulseEvent.decision === 'granted'
+                            ? 'Acceso concedido'
+                            : 'Acceso denegado'}
+                        </StatusBadge>
+                      </div>
+                      <span className="pulse-inspector-meta">
+                        {`Lectura: ${inspectedPulseEvent.directionLabel} en ${inspectedPulseEvent.areaName} · ${formatDateTimeWithSeconds(inspectedPulseEvent.occurredAt)}`}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="chart-subpanel">
+                  <div>
+                    <h3 className="chart-subpanel-title">Distribución por motivo</h3>
+                    <p className="chart-subpanel-meta">
+                      Motivos de decisión en la muestra reciente, ordenados por frecuencia.
+                    </p>
+                  </div>
+
+                  <div className="reason-list">
+                    {reasonActivity.map((bucket) => {
+                      const width = maxReasonTotal > 0 ? (bucket.total / maxReasonTotal) * 100 : 0
+                      const isReasonHovered = hoveredReason === bucket.reasonCode
+                      const reasonPct =
+                        recentEvents.length > 0
+                          ? Math.round((bucket.total / recentEvents.length) * 100)
+                          : 0
+
+                      return (
+                        <div
+                          key={bucket.reasonCode}
+                          className={isReasonHovered ? 'reason-row is-hovered' : 'reason-row'}
+                          onMouseEnter={() => setHoveredReason(bucket.reasonCode)}
+                          onMouseLeave={() =>
+                            setHoveredReason((cur) => (cur === bucket.reasonCode ? null : cur))
+                          }
+                        >
+                          <div className="reason-row-header">
+                            <span className="reason-label" title={bucket.label}>
+                              {bucket.label}
+                            </span>
+                            <span className="reason-count">
+                              {isReasonHovered ? `${bucket.total} (${reasonPct}%)` : bucket.total}
+                            </span>
+                          </div>
+                          <div className="reason-track">
+                            <div
+                              className={`reason-fill ${
+                                bucket.denied > 0 ? 'reason-fill--denied' : 'reason-fill--granted'
+                              }`}
+                              style={{ width: `${width}%` }}
+                              title={`${bucket.label}: ${bucket.total} eventos`}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
-            </>
+            </div>
+          ) : loading ? (
+            <div role="status" aria-live="polite" aria-atomic="true" className="chart-state">
+              <p className="chart-state-title">Cargando eventos recientes...</p>
+              <p className="chart-state-description">{COLD_START_HINT}</p>
+            </div>
           ) : (
-            <p className="table-meta" role="status">
-              {loading
-                ? 'Consultando actividad de las ultimas 24 horas…'
-                : 'Sin eventos de acceso en las ultimas 24 horas.'}
-            </p>
+            <div role="status" aria-live="polite" aria-atomic="true" className="chart-state">
+              <p className="chart-state-title">Sin eventos registrados</p>
+              <p className="chart-state-description">
+                Aún no existen lecturas enviadas por los controladores ESP32-S3.
+              </p>
+            </div>
           )}
         </section>
 
@@ -834,11 +962,7 @@ export function DashboardPage() {
             </Link>
           </div>
 
-          <div
-            role="status"
-            aria-live="polite"
-            style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginBottom: '0.85rem' }}
-          >
+          <div className="device-sync-badges" role="status" aria-live="polite">
             {summary ? (
               <>
                 <StatusBadge variant={outOfSync > 0 ? 'warning' : 'success'}>
@@ -857,281 +981,89 @@ export function DashboardPage() {
             )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {devices.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', margin: 0 }}>
-                {loading
-                  ? `Consultando controladores… ${COLD_START_HINT}`
-                  : 'No hay controladores registrados.'}
-              </p>
-            ) : (
-              devices.map((dev) => (
-                <div key={dev.id} style={DEVICE_ROW_STYLE}>
-                  <div style={DEVICE_ROW_HEADER_STYLE}>
-                    <div>
-                      <span style={{ fontWeight: 600, marginRight: '0.5rem' }}>{dev.name}</span>
-                      <span className="mono-code" translate="no">
-                        {dev.deviceCode}
-                      </span>
-                    </div>
-                    <StatusBadge
-                      variant={
-                        dev.status === 'active'
-                          ? 'success'
-                          : dev.status === 'maintenance'
-                            ? 'warning'
-                            : 'neutral'
-                      }
-                    >
-                      {DEVICE_STATUS_LABELS[dev.status]}
-                    </StatusBadge>
-                  </div>
-                  <div style={DEVICE_ROW_META_STYLE}>
-                    <span>Ubicacion: {dev.location ?? 'Sin especificar'}</span>
-                    <span style={{ display: 'inline-flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      <span className="mono-text" translate="no">
-                        config v{dev.configVersion}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <time dateTime={dev.lastSeenAt ?? undefined} title={formatDateTimeWithSeconds(dev.lastSeenAt)}>
-                        {formatRelativeMinutes(dev.lastSeenAt)}
-                      </time>
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-      </div>
-
-      <section
-        className="surface-card"
-        aria-label="Gráfica de actividad de accesos recientes"
-        aria-busy={loading}
-      >
-        <div style={CHART_HEADER_STYLE}>
-          <div style={{ minWidth: 0 }}>
-            <h2 className="surface-card-title">
-              <Activity size={18} aria-hidden="true" />
-              <span>Últimos eventos de acceso registrados</span>
-            </h2>
-            <p style={CHART_SUBTITLE_STYLE}>
-              Vista visual de la muestra reciente: actividad por área, pulso de lecturas y motivos
-              de decisión. La bitácora completa conserva el detalle tabular de cada evento.
+          {devices.length === 0 ? (
+            <p className="device-compact-empty">
+              {loading
+                ? `Consultando controladores… ${COLD_START_HINT}`
+                : 'No hay controladores registrados.'}
             </p>
-          </div>
-          <Link to="/access-events" className="btn btn-secondary btn-sm">
-            Ver bitácora completa <ArrowRight size={14} aria-hidden="true" />
-          </Link>
-        </div>
-
-        {recentEvents.length > 0 ? (
-          <div role="img" aria-label="Gráfica de últimos eventos de acceso" style={CHART_GRID_STYLE}>
-            <div style={CHART_PANEL_STYLE}>
-              <div>
-                <h3 style={CHART_PANEL_TITLE_STYLE}>Accesos permitidos vs. denegados por área</h3>
-                <p style={CHART_PANEL_META_STYLE}>
-                  {recentEvents.length} lecturas recientes agrupadas por área física (máximo 6).
-                </p>
-              </div>
-
-              <div style={CHART_LEGEND_ROW_STYLE}>
-                <span style={LEGEND_ITEM_STYLE}>
-                  <span style={GRANTED_DOT_STYLE} aria-hidden="true" />
-                  Permitidos
-                </span>
-                <span style={LEGEND_ITEM_STYLE}>
-                  <span style={DENIED_DOT_STYLE} aria-hidden="true" />
-                  Denegados
-                </span>
-              </div>
-
-              <div style={AREA_LIST_STYLE}>
-                {areaActivity.map((bucket) => {
-                  const grantedWidth =
-                    bucket.total > 0 ? (bucket.granted / bucket.total) * 100 : 0
-                  const deniedWidth = bucket.total > 0 ? (bucket.denied / bucket.total) * 100 : 0
+          ) : (
+            <>
+              <div className="device-compact-list" role="list">
+                {visibleDevices.map((dev) => {
+                  const isDeviceHovered = hoveredDeviceId === dev.id
 
                   return (
-                    <div key={bucket.areaName} style={AREA_ROW_STYLE}>
-                      <div style={AREA_ROW_HEADER_STYLE}>
-                        <span style={AREA_NAME_STYLE} title={bucket.areaName}>
-                          {bucket.areaName}
-                        </span>
-                        <span style={AREA_COUNTS_STYLE}>
-                          <span
-                            className="status-badge success"
-                            style={CHART_COUNT_STYLE}
-                            title={`${bucket.granted} accesos permitidos`}
-                          >
-                            <CheckCircle2 size={11} aria-hidden="true" />
-                            {bucket.granted}
+                    <div
+                      key={dev.id}
+                      className={
+                        isDeviceHovered ? 'device-compact-row is-hovered' : 'device-compact-row'
+                      }
+                      role="listitem"
+                      tabIndex={0}
+                      onMouseEnter={() => setHoveredDeviceId(dev.id)}
+                      onMouseLeave={() =>
+                        setHoveredDeviceId((cur) => (cur === dev.id ? null : cur))
+                      }
+                      onFocus={() => setHoveredDeviceId(dev.id)}
+                      onBlur={(e) => {
+                        if (!isFocusWithinTarget(e.currentTarget, e.relatedTarget)) {
+                          setHoveredDeviceId((cur) => (cur === dev.id ? null : cur))
+                        }
+                      }}
+                    >
+                      <div className="device-compact-header">
+                        <div>
+                          <span className="device-compact-name">{dev.name}</span>
+                          <span className="mono-code" translate="no">
+                            {dev.deviceCode}
                           </span>
-                          <span
-                            className="status-badge danger"
-                            style={CHART_COUNT_STYLE}
-                            title={`${bucket.denied} accesos denegados`}
-                          >
-                            <XCircle size={11} aria-hidden="true" />
-                            {bucket.denied}
+                        </div>
+                        <StatusBadge variant={deviceBadgeVariant(dev.status)}>
+                          {DEVICE_STATUS_LABELS[dev.status]}
+                        </StatusBadge>
+                      </div>
+                      <div className="device-compact-meta">
+                        <span>Ubicacion: {dev.location ?? 'Sin especificar'}</span>
+                        <span>
+                          <span className="mono-text" translate="no">
+                            config v{dev.configVersion}
                           </span>
+                          {' · '}
+                          <time
+                            dateTime={dev.lastSeenAt ?? undefined}
+                            title={formatDateTimeWithSeconds(dev.lastSeenAt)}
+                          >
+                            {formatRelativeMinutes(dev.lastSeenAt)}
+                          </time>
                         </span>
                       </div>
-                      <div
-                        style={AREA_TRACK_STYLE}
-                        title={`${bucket.areaName}: ${bucket.granted} permitidos y ${bucket.denied} denegados de ${bucket.total} eventos`}
-                      >
-                        {grantedWidth > 0 ? (
-                          <span
-                            style={{
-                              ...AREA_SEGMENT_STYLE,
-                              width: `${grantedWidth}%`,
-                              backgroundColor: 'var(--status-granted)',
-                            }}
-                            title={`Permitidos: ${bucket.granted}`}
-                          />
-                        ) : null}
-                        {deniedWidth > 0 ? (
-                          <span
-                            style={{
-                              ...AREA_SEGMENT_STYLE,
-                              width: `${deniedWidth}%`,
-                              backgroundColor: 'var(--status-denied)',
-                            }}
-                            title={`Denegados: ${bucket.denied}`}
-                          />
-                        ) : null}
+                      <div className="device-extra-slot">
+                        {isDeviceHovered ? (
+                          <div className="device-hover-extra">
+                            <span>Hardware: {dev.hardwareModel ?? 'ESP32-S3'}</span>
+                            <span>Firmware: {dev.firmwareVersion ?? 'Sin reportar'}</span>
+                            <span>Areas: {dev.areaIds.length}</span>
+                          </div>
+                        ) : (
+                          <span className="device-extra-hint" aria-hidden="true">
+                            Pasa el cursor para ver hardware y areas
+                          </span>
+                        )}
                       </div>
                     </div>
                   )
                 })}
               </div>
-            </div>
-
-            <div style={CHART_COLUMN_STYLE}>
-              <div style={CHART_PANEL_STYLE}>
-                <div>
-                  <h3 style={CHART_PANEL_TITLE_STYLE}>Pulso de eventos recientes</h3>
-                  <p style={CHART_PANEL_META_STYLE}>
-                    Línea de tiempo visual de lecturas recientes: altura según recencia y color
-                    según la decisión.
-                  </p>
-                </div>
-
-                <div style={CHART_LEGEND_ROW_STYLE}>
-                  <span style={LEGEND_ITEM_STYLE}>
-                    <CheckCircle2 size={12} color="var(--status-granted)" aria-hidden="true" />
-                    Permitido
-                  </span>
-                  <span style={LEGEND_ITEM_STYLE}>
-                    <XCircle size={12} color="var(--status-denied)" aria-hidden="true" />
-                    Denegado
-                  </span>
-                  <span style={LEGEND_ITEM_STYLE}>
-                    <LogIn size={12} color="var(--text-secondary)" aria-hidden="true" />
-                    Entrada
-                  </span>
-                  <span style={LEGEND_ITEM_STYLE}>
-                    <LogOut size={12} color="var(--text-secondary)" aria-hidden="true" />
-                    Salida
-                  </span>
-                </div>
-
-                <div style={PULSE_SCROLL_STYLE}>
-                  <div style={PULSE_CHART_STYLE}>
-                    {timelineEvents.map((event) => (
-                      <div key={event.id} style={PULSE_COLUMN_STYLE}>
-                        <span
-                          style={PULSE_DIRECTION_STYLE}
-                          title={event.directionLabel}
-                          aria-label={event.directionLabel}
-                        >
-                          {event.direction === 'entry' ? (
-                            <LogIn size={11} aria-hidden="true" />
-                          ) : (
-                            <LogOut size={11} aria-hidden="true" />
-                          )}
-                        </span>
-                        <div style={PULSE_TRACK_STYLE}>
-                          <div
-                            title={`${event.directionLabel} · ${formatDateTimeWithSeconds(event.occurredAt)} · ${event.areaName} · ${event.decisionLabel} · ${event.personLabel}`}
-                            style={{
-                              ...PULSE_BAR_STYLE,
-                              height: `${event.heightPercent}%`,
-                              backgroundColor:
-                                event.decision === 'granted'
-                                  ? 'var(--status-granted)'
-                                  : 'var(--status-denied)',
-                            }}
-                          />
-                        </div>
-                        <time
-                          dateTime={event.occurredAt}
-                          style={PULSE_TIME_STYLE}
-                          title={formatDateTimeWithSeconds(event.occurredAt)}
-                        >
-                          {formatClockTime(event.occurredAt)}
-                        </time>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div style={CHART_PANEL_STYLE}>
-                <div>
-                  <h3 style={CHART_PANEL_TITLE_STYLE}>Distribución por motivo</h3>
-                  <p style={CHART_PANEL_META_STYLE}>
-                    Motivos de decisión en la muestra reciente, ordenados por frecuencia.
-                  </p>
-                </div>
-
-                <div style={REASON_LIST_STYLE}>
-                  {reasonActivity.map((bucket) => {
-                    const width = maxReasonTotal > 0 ? (bucket.total / maxReasonTotal) * 100 : 0
-                    const fillColor =
-                      bucket.denied > 0 ? 'var(--status-denied)' : 'var(--status-granted)'
-
-                    return (
-                      <div key={bucket.reasonCode} style={REASON_ROW_STYLE}>
-                        <div style={REASON_ROW_HEADER_STYLE}>
-                          <span style={REASON_LABEL_STYLE} title={bucket.label}>
-                            {bucket.label}
-                          </span>
-                          <span style={REASON_COUNT_STYLE}>{bucket.total}</span>
-                        </div>
-                        <div style={REASON_TRACK_STYLE}>
-                          <div
-                            style={{
-                              ...REASON_FILL_STYLE,
-                              width: `${width}%`,
-                              backgroundColor: fillColor,
-                            }}
-                            title={`${bucket.label}: ${bucket.total} eventos`}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : loading ? (
-          <div role="status" aria-live="polite" aria-atomic="true" style={CHART_STATE_STYLE}>
-            <p style={CHART_STATE_TITLE_STYLE}>Cargando eventos recientes...</p>
-            <p style={CHART_STATE_DESCRIPTION_STYLE}>{COLD_START_HINT}</p>
-          </div>
-        ) : (
-          <div role="status" aria-live="polite" aria-atomic="true" style={CHART_STATE_STYLE}>
-            <p style={CHART_STATE_TITLE_STYLE}>Sin eventos registrados</p>
-            <p style={CHART_STATE_DESCRIPTION_STYLE}>
-              Aún no existen lecturas enviadas por los controladores ESP32-S3.
-            </p>
-          </div>
-        )}
-      </section>
+              {devices.length > MAX_VISIBLE_DEVICES ? (
+                <p className="device-more-note">
+                  Mostrando {MAX_VISIBLE_DEVICES} de {devices.length} controladores.
+                </p>
+              ) : null}
+            </>
+          )}
+        </section>
+      </div>
     </div>
   )
 }

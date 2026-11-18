@@ -3,7 +3,7 @@ import {
   ArrowRightLeft,
   LogIn,
   LogOut,
-  MapPin,
+  RefreshCw,
   RotateCcw,
   Search,
   Shuffle,
@@ -504,6 +504,7 @@ interface FloorPlanPanelProps {
   totalOutside: number
   analyzedEvents: number
   simulatedMovements: number
+  showSimulationStats: boolean
   onClose: () => void
   onSelectEmployee: (employeeId: string) => void
 }
@@ -518,6 +519,7 @@ function FloorPlanPanel({
   totalOutside,
   analyzedEvents,
   simulatedMovements,
+  showSimulationStats,
   onClose,
   onSelectEmployee,
 }: FloorPlanPanelProps) {
@@ -547,15 +549,17 @@ function FloorPlanPanel({
             <dt>Eventos</dt>
             <dd>{analyzedEvents}</dd>
           </div>
-          <div className="croquis__stat">
-            <dt>Simulaciones</dt>
-            <dd>{simulatedMovements}</dd>
-          </div>
+          {showSimulationStats ? (
+            <div className="croquis__stat">
+              <dt>Simulaciones</dt>
+              <dd>{simulatedMovements}</dd>
+            </div>
+          ) : null}
         </dl>
 
         <p className="croquis__panel-note">
           Solo los accesos concedidos mueven a las personas en el croquis. Las lecturas denegadas
-          quedan en la bitacora, pero no alteran la ubicacion simulada.
+          quedan en la bitacora, pero no alteran la ubicacion.
         </p>
       </aside>
     )
@@ -645,11 +649,15 @@ function FloorPlanPanel({
   )
 }
 
+export type FloorPlanMode = 'floorplan' | 'simulator' | 'all'
+
 interface AreasFloorPlanProps {
   areas: AreaDto[]
+  mode?: FloorPlanMode
 }
 
-export function AreasFloorPlan({ areas }: AreasFloorPlanProps) {
+export function AreasFloorPlan({ areas, mode = 'all' }: AreasFloorPlanProps) {
+  const showSimulator = mode !== 'floorplan'
   const [serverEvents, setServerEvents] = useState<AccessEventDto[]>([])
   const [employees, setEmployees] = useState<EmployeeDto[]>([])
   const [loading, setLoading] = useState(true)
@@ -1057,10 +1065,6 @@ export function AreasFloorPlan({ areas }: AreasFloorPlanProps) {
 
       <header className="croquis__header">
         <div>
-          <span className="croquis__kicker">
-            <MapPin size={13} aria-hidden="true" />
-            Plano operativo
-          </span>
           <h2 className="croquis__title" id="areas-floor-plan-title">
             Croquis de las areas y ubicacion en tiempo real (Simulacion)
           </h2>
@@ -1070,114 +1074,129 @@ export function AreasFloorPlan({ areas }: AreasFloorPlanProps) {
           </p>
         </div>
 
-        <div className="croquis__status-stack">
+        <div className="croquis__header-actions">
           <span className={`croquis__live${loading ? ' is-loading' : ''}`}>
             <span className="croquis__live-dot" aria-hidden="true" />
             {loading ? 'Sincronizando eventos…' : `${serverEvents.length} eventos del servidor`}
           </span>
-          <span className="croquis__sim-count">
-            {simulatedMovements.length}{' '}
-            {simulatedMovements.length === 1 ? 'simulacion activa' : 'simulaciones activas'}
-          </span>
+          {showSimulator ? (
+            <span className="croquis__sim-count">
+              {simulatedMovements.length}{' '}
+              {simulatedMovements.length === 1 ? 'simulacion activa' : 'simulaciones activas'}
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setReloadKey((current) => current + 1)}
+              disabled={loading}
+            >
+              <RefreshCw size={13} aria-hidden="true" />
+              Actualizar eventos
+            </button>
+          )}
         </div>
       </header>
 
-      <div className="croquis__controls">
-        <form className="croquis__control-form" onSubmit={handleSimulateMovement}>
-          <div className="croquis__field">
-            <label htmlFor="floor-plan-employee">Empleado a mover</label>
-            <select
-              id="floor-plan-employee"
-              className="select-control"
-              value={effectiveEmployeeId}
-              onChange={(event) => setMovementEmployeeId(event.target.value)}
+      {showSimulator ? (
+        <div className="croquis__controls">
+          <form className="croquis__control-form" onSubmit={handleSimulateMovement}>
+            <div className="croquis__field">
+              <label htmlFor="floor-plan-employee">Empleado a mover</label>
+              <select
+                id="floor-plan-employee"
+                className="select-control"
+                value={effectiveEmployeeId}
+                onChange={(event) => setMovementEmployeeId(event.target.value)}
+                disabled={simulationDisabled}
+              >
+                {employeeOptions.length === 0 ? (
+                  <option value="">Sin empleados disponibles</option>
+                ) : null}
+                {employeeOptions.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name} ({employee.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="croquis__field">
+              <label htmlFor="floor-plan-movement">Movimiento</label>
+              <select
+                id="floor-plan-movement"
+                className="select-control"
+                value={movement}
+                onChange={(event) => setMovement(event.target.value as MovementKind)}
+              >
+                <option value="entry">Entrada al area</option>
+                <option value="exit">Salida del area</option>
+              </select>
+            </div>
+
+            <div className="croquis__field">
+              <label htmlFor="floor-plan-destination">Area de destino</label>
+              <select
+                id="floor-plan-destination"
+                className="select-control"
+                value={effectiveDestinationId}
+                onChange={(event) => setMovementAreaId(event.target.value)}
+                disabled={movement === 'exit' || destinationAreas.length === 0}
+              >
+                {destinationAreas.length === 0 ? (
+                  <option value="">Sin areas disponibles</option>
+                ) : null}
+                {destinationAreas.map((area) => (
+                  <option key={area.id} value={area.id}>
+                    {area.name} ({area.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn-primary btn-sm croquis__submit"
               disabled={simulationDisabled}
             >
-              {employeeOptions.length === 0 ? (
-                <option value="">Sin empleados disponibles</option>
-              ) : null}
-              {employeeOptions.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.name} ({employee.code})
-                </option>
-              ))}
-            </select>
-          </div>
+              <ArrowRightLeft size={14} aria-hidden="true" />
+              Simular movimiento (Entrada / Salida)
+            </button>
+          </form>
 
-          <div className="croquis__field">
-            <label htmlFor="floor-plan-movement">Movimiento</label>
-            <select
-              id="floor-plan-movement"
-              className="select-control"
-              value={movement}
-              onChange={(event) => setMovement(event.target.value as MovementKind)}
+          <div className="croquis__quick-actions">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handleSimulatedRound}
+              disabled={simulationDisabled || destinationAreas.length === 0}
             >
-              <option value="entry">Entrada al area</option>
-              <option value="exit">Salida del area</option>
-            </select>
-          </div>
-
-          <div className="croquis__field">
-            <label htmlFor="floor-plan-destination">Area de destino</label>
-            <select
-              id="floor-plan-destination"
-              className="select-control"
-              value={effectiveDestinationId}
-              onChange={(event) => setMovementAreaId(event.target.value)}
-              disabled={movement === 'exit' || destinationAreas.length === 0}
+              <Shuffle size={14} aria-hidden="true" />
+              Simular ronda de accesos
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handleReset}
+              disabled={simulatedMovements.length === 0}
             >
-              {destinationAreas.length === 0 ? (
-                <option value="">Sin areas disponibles</option>
-              ) : null}
-              {destinationAreas.map((area) => (
-                <option key={area.id} value={area.id}>
-                  {area.name} ({area.code})
-                </option>
-              ))}
-            </select>
+              <RotateCcw size={14} aria-hidden="true" />
+              Restablecer con datos del servidor
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setReloadKey((current) => current + 1)}
+              disabled={loading}
+            >
+              <RefreshCw size={13} aria-hidden="true" />
+              Actualizar eventos
+            </button>
           </div>
-
-          <button
-            type="submit"
-            className="btn btn-primary btn-sm croquis__submit"
-            disabled={simulationDisabled}
-          >
-            <ArrowRightLeft size={14} aria-hidden="true" />
-            Simular movimiento (Entrada / Salida)
-          </button>
-        </form>
-
-        <div className="croquis__quick-actions">
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={handleSimulatedRound}
-            disabled={simulationDisabled || destinationAreas.length === 0}
-          >
-            <Shuffle size={14} aria-hidden="true" />
-            Simular ronda de accesos
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={handleReset}
-            disabled={simulatedMovements.length === 0}
-          >
-            <RotateCcw size={14} aria-hidden="true" />
-            Restablecer con datos del servidor
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => setReloadKey((current) => current + 1)}
-            disabled={loading}
-          >
-            Actualizar eventos
-          </button>
         </div>
-      </div>
+      ) : null}
 
-      {feedback ? (
+      {showSimulator && feedback ? (
         <p className="croquis__feedback" role="status" aria-live="polite">
           {feedback}
         </p>
@@ -1313,6 +1332,7 @@ export function AreasFloorPlan({ areas }: AreasFloorPlanProps) {
           totalOutside={exteriorPeople.length}
           analyzedEvents={serverEvents.length}
           simulatedMovements={simulatedMovements.length}
+          showSimulationStats={showSimulator}
           onClose={() => {
             setSelectedZoneId(null)
             setSelectedEmployeeId(null)
@@ -1330,24 +1350,23 @@ const FLOOR_PLAN_STYLES = `
   .croquis {
     --fp-canvas: var(--bg-canvas, #222831);
     --fp-surface: var(--bg-surface, #31363f);
-    --fp-elevated: var(--bg-surface-elevated, #3a4049);
-    --fp-border: var(--border-subtle, rgba(238, 238, 238, 0.12));
-    --fp-border-strong: var(--border-strong, rgba(238, 238, 238, 0.24));
+    --fp-elevated: var(--bg-surface-elevated, #282e37);
+    --fp-border: var(--border-subtle, rgba(238, 238, 238, 0.13));
+    --fp-border-strong: var(--border-strong, rgba(238, 238, 238, 0.26));
     --fp-text: var(--text-primary, #eeeeee);
-    --fp-muted: var(--text-secondary, #b8c0c7);
+    --fp-secondary: var(--text-secondary, #c5cdd3);
+    --fp-muted: var(--text-muted, #9aa5ae);
     --fp-accent: var(--accent-primary, #76abae);
-    --fp-accent-soft: var(--accent-primary-soft, rgba(118, 171, 174, 0.16));
-    --fp-granted: var(--status-granted, #10b981);
-    --fp-warning: var(--status-warning, #f59e0b);
+    --fp-accent-soft: var(--accent-primary-soft, rgba(118, 171, 174, 0.18));
+    --fp-granted: var(--status-granted, #34d399);
+    --fp-warning: var(--status-warning, #fbbf24);
     display: flex;
     flex-direction: column;
     gap: 1rem;
     padding: 1.25rem;
     border: 1px solid var(--fp-border);
-    border-radius: var(--radius-lg, 14px);
-    background:
-      radial-gradient(circle at 8% 0%, var(--fp-accent-soft), transparent 42%),
-      var(--fp-surface);
+    border-radius: var(--radius-md, 10px);
+    background: var(--fp-surface);
     color: var(--fp-text);
   }
 
@@ -1355,54 +1374,48 @@ const FLOOR_PLAN_STYLES = `
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 0.9rem;
     flex-wrap: wrap;
-  }
-
-  .croquis__kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    color: var(--fp-accent);
-    font-family: var(--font-mono, monospace);
-    font-size: 0.68rem;
-    letter-spacing: 0.08em;
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid var(--fp-border);
   }
 
   .croquis__title {
-    margin: 0.2rem 0 0;
-    font-size: 1.08rem;
-    font-weight: 700;
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 600;
     letter-spacing: -0.015em;
+    color: var(--fp-text);
     text-wrap: balance;
   }
 
   .croquis__subtitle {
-    margin: 0.35rem 0 0;
+    margin: 0.25rem 0 0;
     max-width: 72ch;
-    color: var(--fp-muted);
+    color: var(--fp-secondary);
     font-size: 0.82rem;
+    line-height: 1.45;
     text-wrap: pretty;
   }
 
-  .croquis__status-stack {
+  .croquis__header-actions {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.35rem;
+    align-items: center;
+    gap: 0.55rem;
+    flex-wrap: wrap;
   }
 
   .croquis__live {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
-    padding: 0.28rem 0.55rem;
-    border: 1px solid var(--fp-border-strong);
+    padding: 0.28rem 0.65rem;
+    border: 1px solid var(--fp-border);
     border-radius: 999px;
-    background: var(--fp-canvas);
-    color: var(--fp-muted);
+    background: var(--fp-elevated);
+    color: var(--fp-secondary);
     font-family: var(--font-mono, monospace);
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     white-space: nowrap;
   }
 
@@ -1411,31 +1424,24 @@ const FLOOR_PLAN_STYLES = `
     height: 7px;
     border-radius: 50%;
     background: var(--fp-granted);
-    box-shadow: 0 0 8px var(--fp-granted);
-    animation: scfloor-pulse 2.4s ease-in-out infinite;
   }
 
   .croquis__live.is-loading .croquis__live-dot {
     background: var(--fp-warning);
-    box-shadow: 0 0 8px var(--fp-warning);
   }
 
   .croquis__sim-count {
     color: var(--fp-muted);
-    font-size: 0.72rem;
-  }
-
-  @keyframes scfloor-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.35; }
+    font-size: 0.74rem;
+    font-variant-numeric: tabular-nums;
   }
 
   .croquis__controls {
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
-    padding: 0.8rem;
-    border: 1px dashed var(--fp-border-strong);
+    gap: 0.75rem;
+    padding: 0.9rem;
+    border: 1px solid var(--fp-border);
     border-radius: var(--radius-md, 10px);
     background: var(--fp-elevated);
   }
@@ -1456,8 +1462,8 @@ const FLOOR_PLAN_STYLES = `
   }
 
   .croquis__field label {
-    color: var(--fp-muted);
-    font-size: 0.72rem;
+    color: var(--fp-secondary);
+    font-size: 0.74rem;
     font-weight: 600;
   }
 
@@ -1479,9 +1485,10 @@ const FLOOR_PLAN_STYLES = `
   .croquis__feedback {
     margin: 0;
     padding: 0.55rem 0.75rem;
-    border: 1px solid var(--fp-accent);
+    border: 1px solid var(--accent-primary-border, var(--fp-accent));
     border-radius: var(--radius-sm, 6px);
     background: var(--fp-accent-soft);
+    color: var(--fp-text);
     font-size: 0.8rem;
   }
 
@@ -1489,15 +1496,15 @@ const FLOOR_PLAN_STYLES = `
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
-    padding: 0.75rem 0.85rem;
+    padding: 0.7rem 0.85rem;
     border: 1px solid var(--fp-border);
     border-radius: var(--radius-md, 10px);
     background: var(--fp-elevated);
   }
 
   .croquis__search-label {
-    color: var(--fp-muted);
-    font-size: 0.72rem;
+    color: var(--fp-secondary);
+    font-size: 0.74rem;
     font-weight: 600;
   }
 
@@ -1520,7 +1527,7 @@ const FLOOR_PLAN_STYLES = `
   .croquis__search-status {
     margin: 0;
     color: var(--fp-accent);
-    font-size: 0.75rem;
+    font-size: 0.76rem;
   }
 
   .croquis__search-status.is-empty {
@@ -1536,14 +1543,10 @@ const FLOOR_PLAN_STYLES = `
 
   .croquis__plan {
     overflow: hidden;
-    padding: 0.9rem;
-    border: 1px solid var(--fp-border-strong);
+    padding: 0.95rem;
+    border: 1px solid var(--fp-border);
     border-radius: var(--radius-md, 10px);
-    background-color: var(--fp-canvas);
-    background-image:
-      linear-gradient(var(--fp-border) 1px, transparent 1px),
-      linear-gradient(90deg, var(--fp-border) 1px, transparent 1px);
-    background-size: 24px 24px;
+    background: var(--fp-canvas);
   }
 
   .croquis__plan-caption {
@@ -1554,30 +1557,27 @@ const FLOOR_PLAN_STYLES = `
     margin-bottom: 0.75rem;
     color: var(--fp-muted);
     font-family: var(--font-mono, monospace);
-    font-size: 0.68rem;
+    font-size: 0.7rem;
   }
 
   .croquis__grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
-    gap: 0.6rem;
+    grid-template-columns: minmax(0, 1fr) 26px minmax(0, 1fr);
+    gap: 0.65rem;
   }
 
   .croquis__corridor {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-right: 1px dashed var(--fp-border-strong);
-    border-left: 1px dashed var(--fp-border-strong);
-    background: repeating-linear-gradient(
-      180deg,
-      transparent 0 10px,
-      var(--fp-border) 10px 12px
-    );
+    border-left: 1px solid var(--fp-border);
+    border-right: 1px solid var(--fp-border);
+    border-radius: var(--radius-sm, 6px);
+    background: var(--fp-elevated);
     color: var(--fp-muted);
     font-family: var(--font-mono, monospace);
     font-size: 0.62rem;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.1em;
     text-orientation: mixed;
     writing-mode: vertical-rl;
   }
@@ -1592,27 +1592,26 @@ const FLOOR_PLAN_STYLES = `
     gap: 0.5rem;
     min-width: 0;
     height: 100%;
-    padding: 0.8rem;
-    border: 1px solid var(--fp-border-strong);
+    padding: 0.85rem;
+    border: 1px solid var(--fp-border);
     border-radius: var(--radius-md, 10px);
-    background: var(--fp-elevated);
+    background: var(--fp-surface);
     cursor: pointer;
-    transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
   }
 
   .croquis__zone:hover {
-    border-color: var(--fp-accent);
-    transform: translateY(-1px);
+    border-color: var(--fp-border-strong);
   }
 
   .croquis__zone.is-selected {
     border-color: var(--fp-accent);
-    box-shadow: 0 0 0 1px var(--fp-accent), 0 0 22px var(--fp-accent-soft);
+    box-shadow: inset 0 0 0 1px var(--fp-accent);
   }
 
   .croquis__zone.is-match {
     border-color: var(--fp-accent);
-    box-shadow: inset 0 0 0 1px var(--fp-accent);
+    background: color-mix(in srgb, var(--fp-accent-soft) 35%, var(--fp-surface));
   }
 
   .croquis__zone.is-inactive {
@@ -1643,23 +1642,23 @@ const FLOOR_PLAN_STYLES = `
 
   .croquis__zone-name {
     min-width: 0;
-    font-size: 0.82rem;
-    font-weight: 700;
+    font-size: 0.84rem;
+    font-weight: 600;
     overflow-wrap: anywhere;
   }
 
   .croquis__zone-code {
-    color: var(--fp-accent);
+    color: var(--fp-muted);
     font-family: var(--font-mono, monospace);
-    font-size: 0.68rem;
-    letter-spacing: 0.06em;
-    font-weight: 600;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    font-weight: 500;
   }
 
   .croquis__occupancy,
   .croquis__zone-security {
-    color: var(--fp-muted);
-    font-size: 0.72rem;
+    color: var(--fp-secondary);
+    font-size: 0.73rem;
   }
 
   .croquis__occupancy {
@@ -1672,10 +1671,11 @@ const FLOOR_PLAN_STYLES = `
 
   .croquis__zone-security {
     margin: 0;
+    color: var(--fp-muted);
   }
 
   .croquis__capacity-track {
-    height: 5px;
+    height: 4px;
     overflow: hidden;
     border-radius: 999px;
     background: var(--fp-border);
@@ -1706,19 +1706,16 @@ const FLOOR_PLAN_STYLES = `
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     padding: 0;
     border: 1px solid var(--personita-tone-border);
     border-radius: 50%;
-    background:
-      radial-gradient(circle at 32% 24%, var(--personita-tone-soft), transparent 62%),
-      var(--fp-canvas);
+    background: var(--personita-tone-soft);
     color: var(--personita-tone);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--personita-tone) 14%, transparent);
     cursor: pointer;
     transition: border-color 0.15s ease, opacity 0.15s ease, background-color 0.15s ease,
-      box-shadow 0.15s ease, transform 0.15s ease;
+      box-shadow 0.15s ease;
   }
 
   .croquis__chip--exit {
@@ -1729,36 +1726,27 @@ const FLOOR_PLAN_STYLES = `
 
   .croquis__chip:hover {
     border-color: var(--personita-tone);
-    background:
-      radial-gradient(circle at 32% 24%, var(--personita-tone-soft), transparent 72%),
-      var(--fp-accent-soft);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--personita-tone) 18%, transparent);
-    transform: translateY(-1px);
+    background: var(--fp-elevated);
   }
 
   .croquis__chip.is-selected {
     border-color: var(--fp-accent);
-    box-shadow: 0 0 0 2px var(--fp-accent), 0 0 16px var(--fp-accent-soft);
-    transform: translateY(-1px) scale(1.06);
+    box-shadow: 0 0 0 2px var(--fp-accent);
   }
 
   .croquis__chip.is-dimmed {
     opacity: 0.32;
   }
 
-  .croquis__chip.is-dimmed:hover {
-    transform: none;
-  }
-
   .croquis__chip:focus-visible {
     outline: 2px solid var(--fp-accent);
-    outline-offset: 3px;
+    outline-offset: 2px;
   }
 
   .croquis__personita-icon {
     display: block;
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
   }
 
   .croquis__avatar {
@@ -1768,7 +1756,7 @@ const FLOOR_PLAN_STYLES = `
     flex-shrink: 0;
     width: 26px;
     height: 26px;
-    border: 1px solid var(--fp-accent);
+    border: 1px solid var(--accent-primary-border, var(--fp-accent));
     border-radius: 50%;
     background: var(--fp-accent-soft);
     color: var(--fp-accent);
@@ -1804,8 +1792,8 @@ const FLOOR_PLAN_STYLES = `
     display: inline-flex;
     align-items: center;
     gap: 0.18rem;
-    font-size: 0.6rem;
-    font-weight: 700;
+    font-size: 0.62rem;
+    font-weight: 600;
     white-space: nowrap;
   }
 
@@ -1828,24 +1816,33 @@ const FLOOR_PLAN_STYLES = `
 
   .croquis__empty-plan {
     padding: 1rem;
-    border: 1px dashed var(--fp-border-strong);
+    border: 1px solid var(--fp-border);
     border-radius: var(--radius-md, 10px);
     text-align: center;
   }
 
   .croquis__exterior {
     margin-top: 0.75rem;
-    padding: 0.75rem;
-    border: 1px dashed var(--fp-border-strong);
+    padding: 0.8rem 0.85rem;
+    border: 1px solid var(--fp-border);
     border-radius: var(--radius-md, 10px);
-    background: var(--fp-elevated);
+    background: var(--fp-surface);
     cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
   }
 
-  .croquis__exterior.is-selected,
+  .croquis__exterior:hover {
+    border-color: var(--fp-border-strong);
+  }
+
+  .croquis__exterior.is-selected {
+    border-color: var(--fp-accent);
+    box-shadow: inset 0 0 0 1px var(--fp-accent);
+  }
+
   .croquis__exterior.is-match {
     border-color: var(--fp-accent);
-    box-shadow: 0 0 0 1px var(--fp-accent);
+    background: color-mix(in srgb, var(--fp-accent-soft) 35%, var(--fp-surface));
   }
 
   .croquis__exterior-head {
@@ -1871,44 +1868,45 @@ const FLOOR_PLAN_STYLES = `
   }
 
   .croquis__exterior-title strong {
-    font-size: 0.8rem;
+    font-size: 0.82rem;
+    font-weight: 600;
   }
 
   .croquis__exterior-title span {
     color: var(--fp-muted);
-    font-size: 0.68rem;
+    font-size: 0.7rem;
   }
 
   .croquis__exterior-count {
     color: var(--fp-warning);
     font-family: var(--font-mono, monospace);
-    font-size: 0.7rem;
+    font-size: 0.72rem;
   }
 
   .croquis__legend {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.4rem 1rem;
+    gap: 0.45rem 1rem;
     margin-top: 0.85rem;
-    padding-top: 0.7rem;
-    border-top: 1px dashed var(--fp-border-strong);
-    color: var(--fp-muted);
-    font-size: 0.68rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--fp-border);
+    color: var(--fp-secondary);
+    font-size: 0.72rem;
   }
 
   .croquis__legend-title {
     color: var(--fp-text);
     font-family: var(--font-mono, monospace);
-    font-size: 0.66rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
   }
 
   .croquis__legend-item {
     display: inline-flex;
     align-items: center;
-    gap: 0.38rem;
+    gap: 0.4rem;
   }
 
   .croquis__legend-swatch {
@@ -1923,11 +1921,8 @@ const FLOOR_PLAN_STYLES = `
     height: 24px;
     border: 1px solid var(--legend-tone-border);
     border-radius: 50%;
-    background:
-      radial-gradient(circle at 32% 24%, var(--legend-tone-soft), transparent 70%),
-      var(--fp-canvas);
+    background: var(--legend-tone-soft);
     color: var(--legend-tone);
-    box-shadow: 0 0 8px var(--legend-tone-soft);
   }
 
   .croquis__legend-swatch--exit {
@@ -1937,17 +1932,17 @@ const FLOOR_PLAN_STYLES = `
   }
 
   .croquis__legend-swatch .croquis__personita-icon {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
   }
 
   .croquis__panel {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.8rem;
     min-width: 0;
     padding: 1rem;
-    border: 1px solid var(--fp-border-strong);
+    border: 1px solid var(--fp-border);
     border-radius: var(--radius-md, 10px);
     background: var(--fp-elevated);
   }
@@ -1962,7 +1957,7 @@ const FLOOR_PLAN_STYLES = `
   .croquis__panel-title {
     margin: 0;
     font-size: 0.95rem;
-    font-weight: 700;
+    font-weight: 600;
     text-wrap: balance;
   }
 
@@ -1970,35 +1965,36 @@ const FLOOR_PLAN_STYLES = `
     margin: 0.2rem 0 0;
     color: var(--fp-accent);
     font-family: var(--font-mono, monospace);
-    font-size: 0.68rem;
+    font-size: 0.7rem;
   }
 
   .croquis__panel-copy,
   .croquis__panel-note {
     margin: 0;
-    color: var(--fp-muted);
+    color: var(--fp-secondary);
     font-size: 0.78rem;
-    line-height: 1.55;
+    line-height: 1.5;
   }
 
   .croquis__panel-note {
-    padding-top: 0.55rem;
+    padding-top: 0.6rem;
     border-top: 1px solid var(--fp-border);
-    font-size: 0.73rem;
+    color: var(--fp-muted);
+    font-size: 0.74rem;
   }
 
   .croquis__stats {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
     gap: 0.5rem;
     margin: 0;
   }
 
   .croquis__stat {
-    padding: 0.5rem 0.6rem;
+    padding: 0.55rem 0.65rem;
     border: 1px solid var(--fp-border);
     border-radius: var(--radius-sm, 6px);
-    background: var(--fp-canvas);
+    background: var(--fp-surface);
   }
 
   .croquis__stat dt {
@@ -2008,9 +2004,11 @@ const FLOOR_PLAN_STYLES = `
 
   .croquis__stat dd {
     margin: 0.15rem 0 0;
+    color: var(--fp-text);
     font-family: var(--font-mono, monospace);
     font-size: 1rem;
     font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
 
   .croquis__panel-section {
@@ -2021,9 +2019,9 @@ const FLOOR_PLAN_STYLES = `
 
   .croquis__panel-section h4 {
     margin: 0;
-    color: var(--fp-muted);
+    color: var(--fp-secondary);
     font-size: 0.74rem;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   .croquis__panel-list {
@@ -2043,14 +2041,15 @@ const FLOOR_PLAN_STYLES = `
     align-items: center;
     gap: 0.45rem;
     width: 100%;
-    padding: 0.35rem 0.45rem;
+    padding: 0.4rem 0.5rem;
     border: 1px solid var(--fp-border);
     border-radius: var(--radius-sm, 6px);
-    background: var(--fp-canvas);
+    background: var(--fp-surface);
     color: var(--fp-text);
     font: inherit;
     text-align: left;
     cursor: pointer;
+    transition: border-color 0.15s ease;
   }
 
   .croquis__panel-person:hover {
@@ -2067,9 +2066,11 @@ const FLOOR_PLAN_STYLES = `
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.2rem 0.45rem;
-    padding: 0.42rem 0.5rem;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--fp-border);
     border-left: 2px solid var(--fp-border-strong);
-    background: var(--fp-canvas);
+    border-radius: var(--radius-sm, 6px);
+    background: var(--fp-surface);
     font-size: 0.72rem;
   }
 
@@ -2101,7 +2102,7 @@ const FLOOR_PLAN_STYLES = `
   }
 
   .croquis__sim-tag {
-    padding: 0.05rem 0.3rem;
+    padding: 0.05rem 0.35rem;
     border-radius: 999px;
     background: var(--fp-accent-soft);
     color: var(--fp-accent);
@@ -2131,10 +2132,6 @@ const FLOOR_PLAN_STYLES = `
     .croquis__zone-slot {
       grid-column: 1 !important;
       grid-row: auto !important;
-    }
-
-    .croquis__status-stack {
-      align-items: flex-start;
     }
 
     .croquis__submit {

@@ -169,6 +169,69 @@ describe('AreasPage', () => {
     expect(await screen.findByText('Acceso Principal')).toBeInTheDocument()
   })
 
+  it('sections catalog, live floor plan, and simulator into separate tabs', async () => {
+    renderWithAuth(<AreasPage />, makeAuth(['admin']))
+
+    const catalogTab = screen.getByRole('tab', { name: /Catalogo de areas/i })
+    const floorPlanTab = screen.getByRole('tab', { name: /Croquis en vivo/i })
+    const simulatorTab = screen.getByRole('tab', { name: /Simulador de accesos/i })
+
+    expect(catalogTab).toHaveAttribute('aria-selected', 'true')
+    expect(floorPlanTab).toHaveAttribute('aria-selected', 'false')
+    expect(simulatorTab).toHaveAttribute('aria-selected', 'false')
+    expect(await screen.findByRole('table')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /Croquis de las areas/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Empleado a mover')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Simular movimiento (Entrada / Salida)' }),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(floorPlanTab)
+
+    expect(floorPlanTab).toHaveAttribute('aria-selected', 'true')
+    expect(catalogTab).toHaveAttribute('aria-selected', 'false')
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: /Croquis de las areas/i })).toBeInTheDocument()
+    expect(screen.getByLabelText('Buscar empleado en el croquis')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Actualizar eventos' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Empleado a mover')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Movimiento')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Area de destino')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Simular movimiento (Entrada / Salida)' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Simular ronda de accesos' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Restablecer con datos del servidor' }),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(simulatorTab)
+
+    expect(simulatorTab).toHaveAttribute('aria-selected', 'true')
+    expect(floorPlanTab).toHaveAttribute('aria-selected', 'false')
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: /Croquis de las areas/i })).toBeInTheDocument()
+    expect(screen.getByLabelText('Empleado a mover')).toBeInTheDocument()
+    expect(screen.getByLabelText('Movimiento')).toBeInTheDocument()
+    expect(screen.getByLabelText('Area de destino')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Simular movimiento (Entrada / Salida)' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Simular ronda de accesos' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Restablecer con datos del servidor' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Actualizar eventos' })).toBeInTheDocument()
+
+    fireEvent.click(catalogTab)
+
+    expect(catalogTab).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('table')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /Croquis de las areas/i })).not.toBeInTheDocument()
+  })
+
   it('renders the floor plan and locates employees using granted entries and exits', async () => {
     vi.mocked(api.listAccessEvents).mockResolvedValue(
       paginated([
@@ -196,13 +259,15 @@ describe('AreasPage', () => {
 
     renderWithAuth(<AreasPage />, makeAuth(['auditor']))
 
+    fireEvent.click(screen.getByRole('tab', { name: /Croquis en vivo/i }))
+
     const floorPlan = await screen.findByRole('region', { name: /Croquis de las areas/i })
     expect(
       within(floorPlan).getByRole('heading', {
         name: 'Croquis de las areas y ubicacion en tiempo real (Simulacion)',
       }),
     ).toBeInTheDocument()
-    expect(within(floorPlan).getByText('MAIN_ENTRANCE')).toBeInTheDocument()
+    expect(await within(floorPlan).findByText('MAIN_ENTRANCE')).toBeInTheDocument()
     expect(within(floorPlan).getByText('NETWORK_LAB')).toBeInTheDocument()
 
     const mainZone = screen.getByTestId(`floor-zone-${AREA_MAIN.id}`)
@@ -246,6 +311,8 @@ describe('AreasPage', () => {
     )
 
     renderWithAuth(<AreasPage />, makeAuth(['auditor']))
+
+    fireEvent.click(screen.getByRole('tab', { name: /Croquis en vivo/i }))
 
     const mainZone = await screen.findByTestId(`floor-zone-${AREA_MAIN.id}`)
     const anaChip = await within(mainZone).findByRole('button', { name: /Ana Torres, Entrada/ })
@@ -305,6 +372,8 @@ describe('AreasPage', () => {
 
   it('simulates employee entry and exit movements in the floor plan', async () => {
     renderWithAuth(<AreasPage />, makeAuth(['admin']))
+
+    fireEvent.click(screen.getByRole('tab', { name: /Simulador de accesos/i }))
 
     const mainZone = await screen.findByTestId(`floor-zone-${AREA_MAIN.id}`)
     const employeeSelect = await screen.findByLabelText('Empleado a mover')
@@ -368,6 +437,8 @@ describe('AreasPage', () => {
 
     renderWithAuth(<AreasPage />, makeAuth(['auditor']))
 
+    fireEvent.click(screen.getByRole('tab', { name: /Croquis en vivo/i }))
+
     const mainZone = await screen.findByTestId(`floor-zone-${AREA_MAIN.id}`)
     await within(mainZone).findByText('Ana Torres')
 
@@ -406,10 +477,11 @@ describe('AreasPage', () => {
 
     renderWithAuth(<AreasPage />, makeAuth(['auditor']))
 
-    const exteriorZone = screen.getByTestId('floor-zone-exterior')
+    fireEvent.click(screen.getByRole('tab', { name: /Croquis en vivo/i }))
+
+    const exteriorZone = await screen.findByTestId('floor-zone-exterior')
     expect(await within(exteriorZone).findByText('Ana Torres')).toBeInTheDocument()
-    expect(
-      within(screen.getByTestId(`floor-zone-${AREA_MAIN.id}`)).queryByText('Ana Torres'),
-    ).not.toBeInTheDocument()
+    const mainZone = await screen.findByTestId(`floor-zone-${AREA_MAIN.id}`)
+    expect(within(mainZone).queryByText('Ana Torres')).not.toBeInTheDocument()
   })
 })
