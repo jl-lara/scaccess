@@ -169,8 +169,7 @@ export function PermissionsPage() {
         <div>
           <h1 className="page-title">Permisos de acceso</h1>
           <p className="page-description">
-            Relacion entre empleados y areas protegidas. Revocar un permiso actualiza la
-            configuracion de los controladores en la siguiente sincronizacion.
+            Asignacion vigente entre empleados y areas protegidas.
           </p>
         </div>
         {canWriteCatalog ? (

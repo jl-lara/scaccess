@@ -125,7 +125,7 @@ export function UsersPage() {
           <div>
             <h1 className="page-title">Cuentas y roles</h1>
             <p className="page-description">
-              Administracion de accesos a esta consola y a la aplicacion movil.
+              Administracion de cuentas de acceso y roles.
             </p>
           </div>
         </div>
@@ -147,8 +147,7 @@ export function UsersPage() {
         <div>
           <h1 className="page-title">Cuentas y roles</h1>
           <p className="page-description">
-            Vincula cuentas de Supabase Auth con empleados y asigna roles administrativos. El
-            servidor vuelve a verificar los permisos en cada solicitud.
+            Administracion de cuentas de acceso y roles.
           </p>
         </div>
         <button

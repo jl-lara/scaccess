@@ -1,11 +1,29 @@
 # apps/admin - Aplicacion web administrativa
 
-Consola web del Sistema de Control de Acceso (SCAccess). Permite operar el
-catalogo de empleados, tarjetas RFID, areas, permisos, controladores ESP32-S3,
-bitacora de accesos y cuentas administrativas.
+Consola web administrativa de **Accesa** (Sistema de Control de Acceso). Permite
+operar el catalogo de empleados, tarjetas RFID, areas, permisos, controladores
+ESP32-S3, bitacora de accesos y cuentas administrativas.
 
-La interfaz esta en espanol y requiere conexion a Internet. Solo el controlador
-fisico es offline-first.
+La interfaz esta en espanol, adopta una estetica minimalista y requiere conexion
+a Internet. Solo el controlador fisico es offline-first.
+
+## Identidad visual y navegacion
+
+- **Marca:** Accesa. Los activos graficos provienen de `logo/isotipo.png`,
+  `logo/logo_accesa_fondo_blanco.png`, `logo/isotipo_oscuro_transparente.png` y
+  `logo/logo_accesa_fondo_blanco_oscuro_transparente.png`, copiados a
+  `apps/admin/public/brand/` para adaptarse dinamicamente a modo claro y oscuro.
+- **Paleta y tema:** lenguaje visual minimalista derivado del logotipo, con
+  **tema claro predeterminado** (`#FFFFFF` y `#1E1427`) y **variante oscura**
+  (`#120C18` y `#1E1427`).
+- **Barra lateral:** el boton para ocultar/mostrar la barra lateral vive dentro
+  de la propia barra lateral, manteniendo despejada la barra superior, e incluye
+  el submenu desplegable `Catálogos y equipos` (`Empleados`, `Tarjetas RFID`,
+  `Controladores ESP32`).
+- **Vistas concisas e interactivas:** el panel de control revela detalles
+  operativos al pasar el cursor (hover/foco) sobre tarjetas KPI, areas, pulso de
+  eventos, motivos y controladores; la bitacora permite exportar reportes PDF
+  (`src/lib/pdfReport.ts`).
 
 ## Stack
 
@@ -20,21 +38,26 @@ fisico es offline-first.
 
 ```text
 apps/admin/
+├── public/
+│   └── brand/                      Activos de marca Accesa (versiones claro y oscuro)
 ├── src/
 │   ├── App.tsx                     Mapa de rutas de la consola
-│   ├── main.tsx                    Punto de entrada (Router + AuthProvider)
+│   ├── main.tsx                    Punto de entrada (Router + ThemeProvider + AuthProvider)
 │   ├── components/
-│   │   ├── layout/AppShell.tsx     Navegacion, topbar y salud de la API
+│   │   ├── layout/AppShell.tsx     Barra lateral (toggle integrado y submenu), topbar y salud de API
 │   │   └── ui/                     Primitivas compartidas de interfaz
-│   ├── context/AuthContext.tsx     Sesion de Supabase y roles efectivos
+│   ├── context/
+│   │   ├── AuthContext.tsx         Sesion de Supabase y roles efectivos
+│   │   └── ThemeContext.tsx        Tema claro predeterminado y variante oscura
 │   ├── lib/
 │   │   ├── api.ts                  Cliente HTTP tipado de /api/v1
 │   │   ├── env.ts                  Variables de entorno de Vite
 │   │   ├── supabase.ts             Cliente perezoso de Supabase
 │   │   ├── formatters.ts           Etiquetas y formatos en espanol
+│   │   ├── pdfReport.ts            Generador nativo de reportes PDF (PDF 1.4)
 │   │   └── validation.ts           Validaciones de formularios
 │   ├── pages/                      Modulos funcionales de la consola
-│   └── styles/theme.css            Variables y utilidades visuales
+│   └── styles/theme.css            Variables de color Accesa y utilidades visuales
 └── tests/                          Pruebas de paginas y enrutamiento
 ```
 
@@ -90,12 +113,12 @@ npm run test:watch --workspace @scaccess/admin
 
 | Ruta | Modulo | Capacidades |
 | --- | --- | --- |
-| `/` | Panel de control | KPIs, eventos recientes, salud de controladores y alerta de configuracion desactualizada. |
-| `/access-events` | Bitacora de accesos | Filtros por decision, motivo, area, controlador, empleado, UID y rango de fechas; distincion entre `occurredAt` y `receivedAt`; detalle con metadatos JSON. |
+| `/` | Panel de control | Vista simplificada e interactiva: KPIs esenciales con desglose en hover, actividad reciente con inspector de pulso, estado de controladores y alerta de configuracion desactualizada. |
+| `/access-events` | Bitacora de accesos | Filtros por decision, motivo, area, controlador, empleado, UID y rango de fechas; distincion entre `occurredAt` y `receivedAt`; detalle con metadatos JSON; exportacion a reporte PDF. |
 | `/employees` | Empleados | Listado paginado, filtros por estado, departamento y busqueda; alta y edicion para Administrador u Operador. |
 | `/credentials` | Tarjetas RFID | Filtros por estado, titular y UID; registro con validacion hexadecimal; actualizacion de etiqueta, estado y motivo de desactivacion. |
 | `/permissions` | Permisos de acceso | Cruce de permisos con empleados y areas; filtros; otorgamiento con vigencia opcional y revocacion confirmada. |
-| `/areas` | Areas fisicas | Catalogo paginado; alta y edicion (codigo, nombre, descripcion, zona horaria y estado) solo para Administrador. |
+| `/areas` | Areas fisicas | Seccionado en 3 pestañas (`Catalogo de areas`, `Croquis en vivo`, `Simulador de accesos`); alta y edicion (codigo, nombre, descripcion, zona horaria y estado) solo para Administrador. |
 | `/devices` | Controladores ESP32-S3 | Inventario; areas asignadas; estado de sincronizacion (version reportada vs actual, marcas de tiempo y pendientes); alta/edicion con seleccion multiple de areas; emision de credencial con token mostrado una sola vez. |
 | `/users` | Cuentas y roles | Exclusivo para Administrador; cuentas de Supabase Auth, vinculo opcional con empleado, estado y roles. |
 

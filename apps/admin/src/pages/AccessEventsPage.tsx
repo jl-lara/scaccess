@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { CheckCircle2, Eye, RefreshCw, Search, XCircle } from 'lucide-react'
+import { CheckCircle2, Eye, FileDown, RefreshCw, Search, XCircle } from 'lucide-react'
 import type {
   AccessDecision,
   AccessDeviceDto,
@@ -16,6 +16,7 @@ import { StatusBadge } from '../components/ui/StatusBadge'
 import { COLD_START_HINT, TableMessage } from '../components/ui/TableMessage'
 import { api } from '../lib/api'
 import { DECISION_LABELS, REASON_LABELS, formatDateTimeWithSeconds } from '../lib/formatters'
+import { downloadAccessEventsPdf, type AccessEventReportRow } from '../lib/pdfReport'
 import {
   formatMetadata,
   getErrorMessage,
@@ -132,6 +133,8 @@ export function AccessEventsPage() {
   const [supportError, setSupportError] = useState<string | null>(null)
   const [supportReloadKey, setSupportReloadKey] = useState(0)
   const [detailTarget, setDetailTarget] = useState<AccessEventDto | null>(null)
+  const [exportNotice, setExportNotice] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -236,27 +239,156 @@ export function AccessEventsPage() {
     setPage(1)
   }
 
+  function handleExportPdf() {
+    if (events.length === 0) {
+      return
+    }
+
+    setExportNotice(null)
+    setExportError(null)
+
+    try {
+      const filterSummary: string[] = []
+      if (appliedFilters.decision) {
+        filterSummary.push(`Resultado: ${DECISION_LABELS[appliedFilters.decision]}`)
+      }
+      if (appliedFilters.reasonCode) {
+        filterSummary.push(
+          `Motivo: ${REASON_LABELS[appliedFilters.reasonCode] ?? appliedFilters.reasonCode}`,
+        )
+      }
+      if (appliedFilters.areaId) {
+        const area = areaById.get(appliedFilters.areaId)
+        filterSummary.push(
+          `Area: ${area ? `${area.name} (${area.code})` : appliedFilters.areaId}`,
+        )
+      }
+      if (appliedFilters.deviceId) {
+        const device = deviceById.get(appliedFilters.deviceId)
+        filterSummary.push(
+          `Controlador: ${device ? `${device.name} (${device.deviceCode})` : appliedFilters.deviceId}`,
+        )
+      }
+      if (appliedFilters.employeeId) {
+        const employee = employeeById.get(appliedFilters.employeeId)
+        filterSummary.push(
+          `Empleado: ${employee ? `${employee.firstName} ${employee.lastName} (${employee.employeeCode})` : appliedFilters.employeeId}`,
+        )
+      }
+      if (appliedFilters.cardUid) {
+        filterSummary.push(`UID: ${appliedFilters.cardUid}`)
+      }
+      if (appliedFilters.from) {
+        filterSummary.push(
+          `Desde: ${formatDateTimeWithSeconds(toIsoDateTime(appliedFilters.from) ?? appliedFilters.from)}`,
+        )
+      }
+      if (appliedFilters.to) {
+        filterSummary.push(
+          `Hasta: ${formatDateTimeWithSeconds(toIsoDateTime(appliedFilters.to) ?? appliedFilters.to)}`,
+        )
+      }
+
+      const rows: AccessEventReportRow[] = events.map((event) => {
+        const employee = event.employeeId ? employeeById.get(event.employeeId) : undefined
+        const area = areaById.get(event.areaId)
+        const device = deviceById.get(event.deviceId)
+
+        return {
+          decisionLabel: DECISION_LABELS[event.decision],
+          employeeLabel: employee
+            ? `${employee.firstName} ${employee.lastName} (${employee.employeeCode})`
+            : 'Tarjeta desconocida / sin empleado',
+          cardUid: event.cardUid,
+          areaLabel: area ? `${area.name} (${area.code})` : 'Area no disponible',
+          deviceLabel: device
+            ? `${device.name} (${device.deviceCode})`
+            : `Controlador ${event.deviceId.slice(0, 8)}`,
+          reasonLabel: REASON_LABELS[event.reasonCode] ?? event.reasonCode,
+          occurredAtLabel: formatDateTimeWithSeconds(event.occurredAt),
+          receivedAtLabel: formatDateTimeWithSeconds(event.receivedAt),
+        }
+      })
+
+      const filename = downloadAccessEventsPdf({
+        generatedAtLabel: formatDateTimeWithSeconds(new Date().toISOString()),
+        totalInQuery: pagination.total,
+        filterSummary:
+          filterSummary.length > 0 ? filterSummary : ['Sin filtros aplicados (vista general)'],
+        rows,
+      })
+
+      setExportNotice(`Reporte PDF generado correctamente (${filename}).`)
+    } catch (err) {
+      setExportError(getErrorMessage(err, 'No se pudo generar el reporte PDF.'))
+    }
+  }
+
   return (
     <div className="page-stack">
       <div className="page-header">
         <div>
           <h1 className="page-title">Bitacora de accesos</h1>
           <p className="page-description">
-            Registro inmutable de cada lectura en los controladores. La hora del lector y la hora de
-            recepcion en el servidor se conservan por separado para auditar eventos offline.
+            Registro inmutable de lecturas RFID con hora del lector y recepcion en servidor.
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => void loadEvents()}
-          disabled={loading}
-          aria-busy={loading}
-        >
-          <RefreshCw size={15} aria-hidden="true" />
-          <span>{loading ? 'Actualizando…' : 'Actualizar bitacora'}</span>
-        </button>
+        <div className="header-actions-group">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void loadEvents()}
+            disabled={loading}
+            aria-busy={loading}
+          >
+            <RefreshCw size={15} aria-hidden="true" />
+            <span>{loading ? 'Actualizando…' : 'Actualizar bitacora'}</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleExportPdf}
+            disabled={loading || events.length === 0}
+          >
+            <FileDown size={15} aria-hidden="true" />
+            <span>Exportar reporte PDF</span>
+          </button>
+        </div>
       </div>
+
+      {exportNotice ? (
+        <NoticeBanner
+          variant="success"
+          action={
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setExportNotice(null)}
+            >
+              Cerrar
+            </button>
+          }
+        >
+          {exportNotice}
+        </NoticeBanner>
+      ) : null}
+
+      {exportError ? (
+        <NoticeBanner
+          variant="error"
+          action={
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setExportError(null)}
+            >
+              Cerrar
+            </button>
+          }
+        >
+          {exportError}
+        </NoticeBanner>
+      ) : null}
 
       {supportError ? (
         <NoticeBanner

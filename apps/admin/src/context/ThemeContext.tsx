@@ -16,7 +16,7 @@ export interface ThemeContextValue {
   setTheme: (theme: Theme) => void
 }
 
-export const THEME_STORAGE_KEY = 'scaccess-theme'
+export const THEME_STORAGE_KEY = 'accesa-theme'
 
 export const ThemeContext = createContext<ThemeContextValue | null>(null)
 
@@ -31,19 +31,19 @@ function applyThemeToDocument(theme: Theme) {
 }
 
 function readStoredTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark'
+  if (typeof window === 'undefined') return 'light'
   try {
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
-    return isTheme(stored) ? stored : 'dark'
+    return isTheme(stored) ? stored : 'light'
   } catch {
-    return 'dark'
+    return 'light'
   }
 }
 
 function readDocumentTheme(): Theme {
-  if (typeof document === 'undefined') return 'dark'
+  if (typeof document === 'undefined') return 'light'
   const current = document.documentElement.dataset.theme
-  return isTheme(current) ? current : 'dark'
+  return isTheme(current) ? current : 'light'
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

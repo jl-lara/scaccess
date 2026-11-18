@@ -25,10 +25,12 @@ const EMPTY_PAGINATION: PaginationMeta = {
 const COUNT_FORMATTER = new Intl.NumberFormat('es-MX')
 
 type ActiveFilter = '' | 'true' | 'false'
+type AreasSection = 'catalog' | 'floorplan' | 'simulator'
 type AreaModalState = { mode: 'create' } | { mode: 'edit'; area: AreaDto } | null
 
 export function AreasPage() {
   const { isAdmin } = useAuth()
+  const [activeSection, setActiveSection] = useState<AreasSection>('catalog')
   const [areas, setAreas] = useState<AreaDto[]>([])
   const [pagination, setPagination] = useState<PaginationMeta>(EMPTY_PAGINATION)
   const [page, setPage] = useState(1)
@@ -100,8 +102,7 @@ export function AreasPage() {
         <div>
           <h1 className="page-title">Areas fisicas</h1>
           <p className="page-description">
-            Zonas protegidas por los controladores ESP32-S3. Cada area conserva su zona horaria para
-            evaluar horarios permitidos sin depender del reloj del lector.
+            Zonas protegidas por controladores ESP32-S3, ocupacion en vivo y simulacion de accesos.
           </p>
         </div>
         {isAdmin ? (
@@ -156,10 +157,45 @@ export function AreasPage() {
         </NoticeBanner>
       ) : null}
 
-      {/* El croquis consulta eventos y empleados por su cuenta con guardas para mocks antiguos. */}
-      <AreasFloorPlan areas={areas} />
+      <div className="section-tabs" role="tablist" aria-label="Secciones de areas fisicas">
+        <button
+          type="button"
+          role="tab"
+          id="tab-areas-catalog"
+          aria-selected={activeSection === 'catalog'}
+          aria-controls="panel-areas-catalog"
+          className={`section-tab${activeSection === 'catalog' ? ' is-active' : ''}`}
+          onClick={() => setActiveSection('catalog')}
+        >
+          Catalogo de areas
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-areas-floorplan"
+          aria-selected={activeSection === 'floorplan'}
+          aria-controls="panel-areas-floorplan"
+          className={`section-tab${activeSection === 'floorplan' ? ' is-active' : ''}`}
+          onClick={() => setActiveSection('floorplan')}
+        >
+          Croquis en vivo
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-areas-simulator"
+          aria-selected={activeSection === 'simulator'}
+          aria-controls="panel-areas-simulator"
+          className={`section-tab${activeSection === 'simulator' ? ' is-active' : ''}`}
+          onClick={() => setActiveSection('simulator')}
+        >
+          Simulador de accesos
+        </button>
+      </div>
 
-      <section className="surface-card" aria-label="Catalogo de areas">
+      {activeSection === 'catalog' ? (
+        <div id="panel-areas-catalog" role="tabpanel" aria-labelledby="tab-areas-catalog">
+          <section className="surface-card" aria-label="Catalogo de areas">
         <form
           className="table-toolbar"
           role="search"
@@ -324,7 +360,22 @@ export function AreasPage() {
             onPageChange={setPage}
           />
         ) : null}
-      </section>
+          </section>
+        </div>
+      ) : null}
+
+      {activeSection === 'floorplan' ? (
+        <div id="panel-areas-floorplan" role="tabpanel" aria-labelledby="tab-areas-floorplan">
+          {/* El croquis consulta eventos y empleados por su cuenta con guardas para mocks antiguos. */}
+          <AreasFloorPlan areas={areas} mode="floorplan" />
+        </div>
+      ) : null}
+
+      {activeSection === 'simulator' ? (
+        <div id="panel-areas-simulator" role="tabpanel" aria-labelledby="tab-areas-simulator">
+          <AreasFloorPlan areas={areas} mode="simulator" />
+        </div>
+      ) : null}
 
       {modal ? (
         <AreaFormModal

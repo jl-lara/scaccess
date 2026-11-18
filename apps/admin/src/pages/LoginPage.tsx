@@ -1,14 +1,15 @@
 import { useState, type CSSProperties, type FormEvent } from 'react'
-import { Eye, EyeOff, KeyRound, Moon, ShieldCheck, Sun } from 'lucide-react'
+import { Eye, EyeOff, KeyRound, Moon, Sun } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 
 const BRAND_ROW_STYLE: CSSProperties = {
   display: 'flex',
-  alignItems: 'center',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
   gap: '0.85rem',
-  marginBottom: '1.5rem',
+  marginBottom: '1.6rem',
 }
 const FORM_STYLE: CSSProperties = {
   display: 'flex',
@@ -16,7 +17,7 @@ const FORM_STYLE: CSSProperties = {
   gap: '1rem',
 }
 const PASSWORD_WRAPPER_STYLE: CSSProperties = { position: 'relative' }
-const PASSWORD_INPUT_STYLE: CSSProperties = { paddingRight: '2.75rem' }
+const PASSWORD_INPUT_STYLE: CSSProperties = { paddingRight: '2.75rem', width: '100%' }
 const PASSWORD_TOGGLE_STYLE: CSSProperties = {
   position: 'absolute',
   top: '50%',
@@ -68,7 +69,7 @@ export function LoginPage() {
           className="btn btn-secondary btn-sm theme-toggle"
           onClick={toggleTheme}
           aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-          aria-pressed={!isDark}
+          aria-pressed={isDark}
         >
           {isDark ? <Sun size={15} aria-hidden="true" /> : <Moon size={15} aria-hidden="true" />}
           <span>{isDark ? 'Modo claro' : 'Modo oscuro'}</span>
@@ -76,15 +77,38 @@ export function LoginPage() {
       </div>
       <section className="login-card">
         <div style={BRAND_ROW_STYLE}>
-          <div className="brand-mark" aria-hidden="true">
-            <ShieldCheck size={22} />
+          <div className="brand-logo-frame">
+            <img
+              src={
+                isDark
+                  ? '/brand/logo_accesa_fondo_blanco_oscuro_transparente.png'
+                  : '/brand/logo_accesa_fondo_blanco.png'
+              }
+              alt="Accesa"
+              className="login-brand-logo"
+            />
           </div>
           <div>
-            <h1 id="login-title" style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>
+            <h1
+              id="login-title"
+              style={{
+                margin: 0,
+                fontSize: '1.35rem',
+                fontWeight: 700,
+                letterSpacing: '-0.02em',
+                lineHeight: 1.2,
+              }}
+            >
               Consola Administrativa
             </h1>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Sistema de Control de Acceso RFID
+            <p
+              style={{
+                margin: '0.25rem 0 0',
+                fontSize: '0.82rem',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              Accesa · Control de Acceso RFID
             </p>
           </div>
         </div>

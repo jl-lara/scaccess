@@ -1,9 +1,9 @@
-# Guía de la Web Administrativa (`apps/admin`)
+# Guía de la Web Administrativa Accesa (`apps/admin`)
 
-Documento de referencia para el equipo sobre la consola web del Sistema de
-Control de Acceso (SCAccess): arquitectura, diseño del dashboard, módulos,
-permisos por rol, ejecución local, despliegue y evidencia de la validación E2E
-ejecutada contra el backend real en Render y Supabase Auth.
+Documento de referencia para el equipo sobre la consola web de **Accesa**
+(Sistema de Control de Acceso): arquitectura, lenguaje visual minimalista,
+módulos, permisos por rol, ejecución local, despliegue y evidencia de la
+validación E2E ejecutada contra el backend real en Render y Supabase Auth.
 
 - **Estado:** aplicación implementada en `apps/admin` y contratos verificados en
   vivo el **2026-11-11 04:34 UTC** (2026-11-10 20:34, `America/Tijuana`).
@@ -35,27 +35,35 @@ PostgreSQL ni a Prisma. La única capa con acceso a la base de datos es
 ### 1.2 Composición de la aplicación
 
 ```text
+public/brand/                        (isotipo.png, logo_accesa_fondo_blanco.png)
 index.html
 └── src/main.tsx
     └── StrictMode
         └── BrowserRouter
-            └── AuthProvider          (sesión Supabase + perfil /auth/me)
-                └── App               (mapa de rutas)
-                    ├── /login        LoginPage (pública)
-                    └── ProtectedRoutes
-                        └── AppShell  (sidebar + topbar + salud de API)
-                            ├── /                  DashboardPage
-                            ├── /access-events     AccessEventsPage
-                            ├── /employees         EmployeesPage
-                            ├── /credentials       CredentialsPage
-                            ├── /permissions       PermissionsPage
-                            ├── /areas             AreasPage
-                            ├── /devices           DevicesPage
-                            └── /users             UsersPage
+            └── ThemeProvider        (tema claro predeterminado / variante oscura)
+                └── AuthProvider     (sesión Supabase + perfil /auth/me)
+                    └── App          (mapa de rutas)
+                        ├── /login   LoginPage (pública)
+                        └── ProtectedRoutes
+                            └── AppShell  (sidebar con toggle integrado + topbar + salud de API)
+                                ├── /                  DashboardPage
+                                ├── /access-events     AccessEventsPage
+                                ├── /employees         EmployeesPage
+                                ├── /credentials       CredentialsPage
+                                ├── /permissions       PermissionsPage
+                                ├── /areas             AreasPage
+                                ├── /devices           DevicesPage
+                                └── /users             UsersPage
 ```
 
-- `src/components/layout/AppShell.tsx` concentra la navegación, el perfil
-  activo, el cierre de sesión y el indicador de salud de la API.
+- `public/brand/` aloja los activos de marca de Accesa (`isotipo.png` y
+  `logo_accesa_fondo_blanco.png`), copiados desde `logo/` en la raíz del
+  repositorio.
+- `src/context/ThemeContext.tsx` gestiona el tema claro predeterminado y la
+  variante oscura de la consola.
+- `src/components/layout/AppShell.tsx` concentra la navegación lateral (con el
+  botón integrado dentro de la propia barra lateral para ocultarla o mostrarla),
+  el perfil activo, el cierre de sesión y el indicador de salud de la API.
 - `src/components/ui/` contiene primitivas reutilizables: `Modal`,
   `Pagination`, `NoticeBanner`, `StatusBadge` y `TableMessage`.
 - `src/pages/` mantiene un módulo por página, con estado local y llamadas
@@ -141,86 +149,76 @@ en un despliegue real se deben definir explícitamente las tres variables.
 
 ---
 
-## 2. Diseño del Dashboard: "Tactile Security Command Center"
+## 2. Diseño visual minimalista de Accesa
 
-El panel `/` está concebido como un centro de mando operativo: fondo oscuro,
-alto contraste, números monoespaciados y colores semánticos para distinguir
-accesos concedidos, denegados y advertencias. La intención es que un operador
-pueda evaluar el estado del sistema en segundos, sin leer tablas densas.
+La consola adopta una estética minimalista derivada de la identidad visual de
+**Accesa**, priorizando legibilidad, contraste limpio y reducción de ruido en
+pantalla para operar catálogos y eventos sin sobrecarga visual.
 
-### 2.1 Lenguaje visual
+### 2.1 Lenguaje visual e identidad de marca
 
-| Token | Valor | Uso |
-| --- | --- | --- |
-| `--bg-canvas` | `#0b0f17` | Fondo general de la consola |
-| `--bg-surface` | `#111827` | Tarjetas y sidebar |
-| `--bg-surface-elevated` | `#172033` | Filas, inputs y subpaneles |
-| `--accent-primary` | `#0ea5e9` | Marca, enlaces y foco |
-| `--status-granted` | `#10b981` | Accesos concedidos y estado saludable |
-| `--status-denied` | `#f43f5e` | Accesos denegados y errores |
-| `--status-warning` | `#f59e0b` | Sincronización pendiente y advertencias |
-| `--font-sans` | `Plus Jakarta Sans` | Texto general |
-| `--font-mono` | `IBM Plex Mono` | KPIs, códigos, UIDs y fechas |
+- **Activos de marca:** los logotipos `logo/isotipo.png`,
+  `logo/logo_accesa_fondo_blanco.png`, `logo/isotipo_oscuro_transparente.png` y
+  `logo/logo_accesa_fondo_blanco_oscuro_transparente.png` se encuentran copiados
+  en `apps/admin/public/brand/` para servirse directamente como recursos
+  estáticos según el tema activo (claro u oscuro).
+- **Tema claro predeterminado:** superficie principal `#FFFFFF` combinada con
+  `#1E1427` en elementos de marca y contraste principal.
+- **Variante oscura:** superficie principal `#120C18` combinada con `#1E1427`,
+  intercambiable desde el selector de tema de la interfaz.
+- **Tipografía:** `Plus Jakarta Sans` para texto general y `IBM Plex Mono` para
+  códigos, UIDs RFID, fechas y cifras tabulares.
+- **Estados semánticos:** los estados (accesos concedidos, denegados y
+  advertencias) usan badges con fondo suave, borde y texto de alto contraste,
+  sin depender exclusivamente del color.
 
-Las tarjetas KPI incluyen una barra superior de 3 px con el color semántico de
-su categoría. Los estados usan badges con fondo suave, borde y texto de alto
-contraste; no se depende solo del color para comunicar el estado.
-
-### 2.2 Estructura de pantalla
+### 2.2 Estructura de pantalla y navegación (`AppShell`)
 
 ```text
 ┌───────────────────────┬──────────────────────────────────────────────┐
-│ Sidebar 260 px        │ Topbar 60 px: salud API + versión             │
-│ - Marca SCAccess      ├──────────────────────────────────────────────┤
-│ - Navegación          │ Encabezado: título, descripción, Actualizar   │
-│ - Perfil + roles      │ Banner de controladores desactualizados       │
-│ - Cerrar sesión       │ Grid de 6 tarjetas KPI                        │
-│                       │ ┌───────────────────────────┬──────────────┐ │
-│                       │ │ Últimos eventos + ratio   │ Salud de     │ │
-│                       │ │ de concedidos/denegados   │ controladores│ │
-│                       │ └───────────────────────────┴──────────────┘ │
+│ Sidebar               │ Topbar: salud API + selector de tema         │
+│ - Marca Accesa        ├──────────────────────────────────────────────┤
+│ - Botón ocultar/mostrar│ Encabezado conciso + acción principal       │
+│ - Navegación          │ Banner de alertas (si hay outOfSync > 0)     │
+│ - Perfil + roles      │ Contenido principal del módulo activo        │
+│ - Cerrar sesión       │                                              │
 └───────────────────────┴──────────────────────────────────────────────┘
 ```
 
-- **Sidebar fija** de 260 px con la marca, la navegación principal y el perfil
-  del usuario (correo y roles traducidos al español).
-- **Topbar sticky** con un punto de estado de la API:
+- **Sidebar con control integrado y submenú:** muestra la marca **Accesa**
+  (adaptada a tema claro/oscuro), el botón para ocultar/mostrar la barra lateral
+  dentro de la propia barra, el submenú desplegable `Catálogos y equipos`
+  (`Empleados`, `Tarjetas RFID` y `Controladores ESP32`), el resto de la
+  navegación principal y el perfil del usuario (correo y roles traducidos al
+  español).
+- **Topbar sticky:** concentra el indicador de salud de la API y el cambio entre
+  modo claro y oscuro:
   - `waking` (ámbar): "Despertando la API en Render… puede tardar hasta 60 segundos."
   - `online` (verde): "API conectada (Ns activa)"
   - `offline` (rojo): "API sin respuesta. Verifica la conexión y vuelve a intentarlo."
   La comprobación se repite cada **30 s** con `GET /api/v1/health`.
 - **Contenido** centrado con ancho máximo de 1440 px y padding fluido.
 
-### 2.3 KPIs del panel
+### 2.3 Simplificación del Dashboard, Áreas y catálogos
 
-| KPI | Fuente | Comportamiento |
-| --- | --- | --- |
-| Empleados activos | `summary.employees.active` | Muestra también el total registrado y enlace a Empleados. |
-| Tarjetas RFID activas | `summary.credentials.active` | Muestra bloqueadas/extravíadas y enlace a Tarjetas. |
-| Áreas protegidas | `summary.areas.active` | Muestra el total configurado y enlace a Áreas. |
-| Controladores ESP32 | `summary.devices.active / total` | Cambia a variante ámbar si `outOfSync > 0`; enlace a Controladores. |
-| Accesos concedidos (24 h) | `summary.recentEvents24h.granted` | Muestra el porcentaje sobre el total de intentos y enlace a la bitácora. |
-| Accesos denegados (24 h) | `summary.recentEvents24h.denied` | Muestra el porcentaje de rechazos y enlace a la bitácora. |
+- **Panel de control (`/`):** fue simplificado para evitar sobrecarga visual y
+  ofrece interactividad al pasar el cursor (hover/foco) sobre tarjetas KPI,
+  barras por área, inspector del pulso de eventos, motivos y controladores,
+  manteniendo los datos cargados en paralelo con `Promise.all`. Si
+  `summary.devices.outOfSync > 0`, aparece un banner ámbar con enlace directo a
+  `/devices`. Los eventos de tarjetas desconocidas conservan su UID sin inventar
+  un empleado asociado.
+- **Áreas físicas (`/areas`):** el módulo está seccionado en **3 pestañas**
+  (`Catalogo de areas`, `Croquis en vivo` y `Simulador de accesos`) para separar
+  la gestión del catálogo, la visualización espacial de presencia y la
+  simulación de lecturas sin saturar una sola pantalla.
+- **Páginas de catálogo y bitácora** (`/access-events`, `/employees`,
+  `/credentials`, `/permissions`, `/devices`, `/users`): presentan subtítulos
+  breves y directos bajo cada `<h1>` y barras de herramientas depuradas (por
+  ejemplo, en `Controladores ESP32-S3` se eliminó la nota redundante sobre el
+  reloj del servidor para dejar limpio el contador de controladores).
 
-Las cifras se cargan en paralelo con `Promise.all` junto con los últimos 8
-eventos, los controladores, las áreas y los empleados necesarios para resolver
-nombres. Así se evita una cascada de peticiones.
-
-### 2.4 Alertas y monitoreo
-
-- Si `summary.devices.outOfSync > 0`, aparece un banner ámbar con el número de
-  controladores activos con cambios pendientes y un enlace directo a
-  `/devices`.
-- La tarjeta de controladores cambia a `variant-warning` en ese mismo caso.
-- La tabla de **últimos eventos** muestra resultado, empleado/tarjeta, área,
-  motivo y hora del lector con segundos. Una tarjeta desconocida aparece como
-  "Tarjeta no vinculada" y conserva su UID, sin inventar un empleado.
-- La barra de proporción concedidos/denegados resume visualmente las últimas
-  24 h.
-- El panel de **salud de controladores** lista nombre, código, estado, ubicación,
-  versión de configuración y última conexión relativa.
-
-### 2.5 Estados y accesibilidad
+### 2.4 Estados y accesibilidad
 
 - Cada sección tiene `aria-label`; los errores usan `role="alert"` y las
   advertencias `role="status"`.
@@ -228,8 +226,8 @@ nombres. Así se evita una cascada de peticiones.
 - Las tablas se envuelven en contenedores con scroll horizontal para no romper
   el layout en pantallas pequeñas.
 - En `prefers-reduced-motion: reduce` se desactivan animaciones y transiciones.
-- La navegación se colapsa a una columna por debajo de 960 px y los controles
-  pasan a ancho completo por debajo de 720 px.
+- La navegación se colapsa en pantallas pequeñas y los controles se adaptan sin
+  desbordamiento horizontal.
 - Los estados de carga, vacío y error se muestran dentro de las tablas o
   tarjetas, sin dejar la pantalla en blanco.
 
@@ -268,12 +266,12 @@ Notas:
 
 | Módulo | Capacidades principales |
 | --- | --- |
-| Panel de control | KPIs, últimos eventos, proporción concedidos/denegados, salud de controladores, alerta de configuración desactualizada, actualización manual. |
-| Bitácora de accesos | Filtros por decisión, motivo, área, controlador, empleado, UID y rango de fechas; distinción entre `occurredAt` (lector) y `receivedAt` (servidor); detalle con metadatos JSON. |
+| Panel de control | Vista simplificada e interactiva: KPIs principales con desglose en hover, actividad reciente con inspector de pulso, estado de controladores, alerta de configuración desactualizada y actualización manual. |
+| Bitácora de accesos | Filtros por decisión, motivo, área, controlador, empleado, UID y rango de fechas; distinción entre `occurredAt` (lector) y `receivedAt` (servidor); detalle con metadatos JSON; generación y descarga de reporte en formato PDF (`src/lib/pdfReport.ts`). |
 | Empleados | Listado paginado, filtros por estado, departamento y búsqueda; alta y edición de datos y estado operativo. |
 | Tarjetas RFID | Inventario paginado; filtros por estado, titular y UID; alta con validación hexadecimal; edición de etiqueta, estado y motivo de desactivación. |
 | Permisos de acceso | Cruce de permisos con empleados y áreas; filtros; otorgamiento con vigencia opcional; revocación con confirmación. |
-| Áreas físicas | Catálogo paginado; alta y edición de código, nombre, descripción, zona horaria y estado (solo Administrador). |
+| Áreas físicas | Seccionado en 3 pestañas (`Catalogo de areas`, `Croquis en vivo`, `Simulador de accesos`); catálogo paginado con alta y edición de código, nombre, descripción, zona horaria y estado (solo Administrador), monitoreo en vivo y simulación de lecturas. |
 | Controladores ESP32-S3 | Inventario; áreas asignadas; estado de sincronización (versión reportada vs. actual, marcas de tiempo y pendientes); alta/edición con selección múltiple de áreas; emisión de credencial con token mostrado una sola vez. |
 | Cuentas y roles | Exclusivo de Administrador: cuentas de Supabase Auth, vínculo opcional con empleado, estado y roles. |
 
@@ -599,4 +597,5 @@ después de publicar la web.
   eventos de prueba.
 - `docs/DEVELOPMENT.md` — configuración del monorepo y despliegue de la API.
 - `apps/admin/src/lib/api.ts` — cliente HTTP y endpoints consumidos.
-- `apps/admin/src/styles/theme.css` — tokens visuales del dashboard.
+- `apps/admin/src/styles/theme.css` — tokens visuales de Accesa (tema claro predeterminado y variante oscura).
+- `apps/admin/public/brand/` — activos de marca de Accesa (`isotipo.png` y `logo_accesa_fondo_blanco.png`).

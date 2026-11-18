@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { AuthContext, hasAllowedAdminRole, type AuthContextValue } from '../src/context/AuthContext'
@@ -261,5 +261,157 @@ describe('DashboardPage', () => {
     )
 
     expect(screen.getByText('Cargando eventos recientes...')).toBeInTheDocument()
+  })
+
+  it('caps the compact device panel at 5 rows and reports total count when there are more', async () => {
+    const sevenDevices = Array.from({ length: 7 }, (_, index) => {
+      const num = index + 1
+      return {
+        id: `dev-${num}`,
+        deviceCode: `ESP32-QA-0${num}`,
+        name: `Lector Zona ${num}`,
+        location: `Edificio ${num}`,
+        status: 'active' as const,
+        hardwareModel: 'ESP32-S3',
+        firmwareVersion: '1.0.0',
+        configVersion: '3',
+        lastSeenAt: '2026-11-10T12:00:00.000Z',
+        provisionedAt: '2026-11-01T00:00:00.000Z',
+        areaIds: ['area-1'],
+        createdAt: '2026-11-01T00:00:00.000Z',
+        updatedAt: '2026-11-10T12:00:00.000Z',
+      }
+    })
+
+    vi.mocked(api.getDashboardSummary).mockResolvedValueOnce({
+      employees: { total: 4, active: 3 },
+      credentials: { total: 3, active: 2, blockedOrLost: 1 },
+      areas: { total: 3, active: 3 },
+      devices: { total: 7, active: 7, outOfSync: 0 },
+      recentEvents24h: { granted: 18, denied: 2 },
+    })
+    vi.mocked(api.listAccessDevices).mockResolvedValueOnce(paginated(sevenDevices))
+
+    render(
+      <MemoryRouter>
+        <AuthContext.Provider value={mockAuthValue}>
+          <DashboardPage />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    )
+
+    const devicePanel = await screen.findByRole('region', {
+      name: 'Estado de sincronización de dispositivos',
+    })
+
+    expect(await within(devicePanel).findByText('Lector Zona 1')).toBeInTheDocument()
+    expect(within(devicePanel).getAllByRole('listitem')).toHaveLength(5)
+    expect(within(devicePanel).getByText('Lector Zona 5')).toBeInTheDocument()
+    expect(within(devicePanel).queryByText('Lector Zona 6')).not.toBeInTheDocument()
+    expect(within(devicePanel).queryByText('Lector Zona 7')).not.toBeInTheDocument()
+    expect(within(devicePanel).getByText('Mostrando 5 de 7 controladores.')).toBeInTheDocument()
+  })
+
+  it('reveals extra details on hover for KPI cards, areas, pulse timeline, and devices', async () => {
+    render(
+      <MemoryRouter>
+        <AuthContext.Provider value={mockAuthValue}>
+          <DashboardPage />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Empleados activos')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('img', { name: 'Gráfica de últimos eventos de acceso' }),
+    ).toBeInTheDocument()
+
+    const employeesKpiCard = screen.getByText('Empleados activos').closest<HTMLElement>('.kpi-card')
+    if (!employeesKpiCard) throw new Error('Expected employees KPI card')
+
+    const employeesSlot = employeesKpiCard.querySelector('.kpi-detail-slot')
+    expect(employeesSlot).not.toBeNull()
+    expect(screen.queryByText('Inactivos / baja: 1')).not.toBeInTheDocument()
+    fireEvent.mouseEnter(employeesKpiCard)
+    expect(employeesKpiCard).toHaveClass('is-hovered')
+    expect(employeesKpiCard.querySelector('.kpi-detail-slot')).toBe(employeesSlot)
+    expect(within(employeesKpiCard).getByText('Inactivos / baja: 1')).toBeInTheDocument()
+    expect(within(employeesKpiCard).getByText('Personal activo: 75% del padron')).toBeInTheDocument()
+    fireEvent.mouseLeave(employeesKpiCard)
+    expect(employeesKpiCard.querySelector('.kpi-detail-slot')).toBe(employeesSlot)
+    expect(screen.queryByText('Inactivos / baja: 1')).not.toBeInTheDocument()
+
+    const deniedKpiCard = screen
+      .getByText('Accesos denegados (24h)')
+      .closest<HTMLElement>('.kpi-card')
+    if (!deniedKpiCard) throw new Error('Expected denied KPI card')
+
+    const deniedSlot = deniedKpiCard.querySelector('.kpi-detail-slot')
+    expect(deniedSlot).not.toBeNull()
+    fireEvent.mouseEnter(deniedKpiCard)
+    expect(deniedKpiCard.querySelector('.kpi-detail-slot')).toBe(deniedSlot)
+    expect(within(deniedKpiCard).getByText('Total evaluados (24h): 20')).toBeInTheDocument()
+    expect(
+      within(deniedKpiCard).getByText('Motivo principal: Tarjeta desconocida'),
+    ).toBeInTheDocument()
+    fireEvent.mouseLeave(deniedKpiCard)
+
+    const areaRow = screen.getByText('Entrada Principal').closest<HTMLElement>('.area-row')
+    if (!areaRow) throw new Error('Expected Entrada Principal area row')
+
+    const areaSlot = areaRow.querySelector('.area-detail-slot')
+    expect(areaSlot).not.toBeNull()
+    fireEvent.mouseEnter(areaRow)
+    expect(areaRow).toHaveClass('is-hovered')
+    expect(areaRow.querySelector('.area-detail-slot')).toBe(areaSlot)
+    expect(within(areaRow).getByText('50% aprobacion · 2 lectura(s) recientes')).toBeInTheDocument()
+    fireEvent.mouseLeave(areaRow)
+    expect(areaRow.querySelector('.area-detail-slot')).toBe(areaSlot)
+    expect(
+      within(areaRow).queryByText('50% aprobacion · 2 lectura(s) recientes'),
+    ).not.toBeInTheDocument()
+
+    const grantedPulseBar = screen.getByTitle(/04A1B2C3D4E5F6/)
+    const pulsePanel = grantedPulseBar.closest<HTMLElement>('.chart-subpanel')
+    if (!pulsePanel) throw new Error('Expected pulse subpanel')
+    const pulseInspector = pulsePanel.querySelector<HTMLElement>('.pulse-inspector')
+    if (!pulseInspector) throw new Error('Expected pulse inspector')
+
+    fireEvent.mouseEnter(grantedPulseBar)
+    expect(grantedPulseBar.closest('.pulse-column')).toHaveClass('is-active')
+    expect(within(pulseInspector).getByText(/Empleado QA Movil · 04A1B2C3D4E5F6/)).toBeInTheDocument()
+    expect(within(pulseInspector).getByText('Acceso concedido')).toBeInTheDocument()
+
+    const deniedPulseBar = screen.getByTitle(/DEADBEEF1234/)
+    fireEvent.mouseEnter(deniedPulseBar)
+    expect(deniedPulseBar.closest('.pulse-column')).toHaveClass('is-active')
+    expect(within(pulseInspector).getByText('DEADBEEF1234')).toBeInTheDocument()
+    expect(within(pulseInspector).getByText('Acceso denegado')).toBeInTheDocument()
+
+    const reasonRow = screen.getByText('Tarjeta desconocida').closest<HTMLElement>('.reason-row')
+    if (!reasonRow) throw new Error('Expected reason row')
+
+    fireEvent.mouseEnter(reasonRow)
+    expect(reasonRow).toHaveClass('is-hovered')
+    expect(within(reasonRow).getByText('1 (50%)')).toBeInTheDocument()
+    fireEvent.mouseLeave(reasonRow)
+    expect(within(reasonRow).getByText('1')).toBeInTheDocument()
+
+    const deviceRow = screen
+      .getByText('Lector Entrada Principal')
+      .closest<HTMLElement>('.device-compact-row')
+    if (!deviceRow) throw new Error('Expected device row')
+
+    const deviceSlot = deviceRow.querySelector('.device-extra-slot')
+    expect(deviceSlot).not.toBeNull()
+    fireEvent.mouseEnter(deviceRow)
+    expect(deviceRow).toHaveClass('is-hovered')
+    expect(deviceRow.querySelector('.device-extra-slot')).toBe(deviceSlot)
+    expect(within(deviceRow).getByText('Hardware: ESP32-S3')).toBeInTheDocument()
+    expect(within(deviceRow).getByText('Firmware: 1.0.0')).toBeInTheDocument()
+    expect(within(deviceRow).getByText('Areas: 1')).toBeInTheDocument()
+    fireEvent.mouseLeave(deviceRow)
+    expect(deviceRow.querySelector('.device-extra-slot')).toBe(deviceSlot)
+    expect(within(deviceRow).queryByText('Hardware: ESP32-S3')).not.toBeInTheDocument()
   })
 })
