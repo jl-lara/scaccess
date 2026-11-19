@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Accesa Móvil",
+    "slug": "scaccess-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "scaccess",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#1E1427",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.scaccess.mobile"
+    },
+    "android": {
+      "package": "com.scaccess.mobile"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}

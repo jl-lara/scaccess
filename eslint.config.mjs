@@ -10,6 +10,8 @@ export default tseslint.config(
       '**/.agents/**',
       '**/src/generated/**',
       '**/prisma/migrations/**',
+      '**/babel.config.js',
+      '**/metro.config.js',
     ],
   },
   js.configs.recommended,
