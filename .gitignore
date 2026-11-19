@@ -43,3 +43,7 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 *.dump
+
+# Python cache
+__pycache__/
+*.py[cod]

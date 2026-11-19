@@ -190,10 +190,17 @@ npm test
 npm run build
 ```
 
+## Despliegue estatico
+
+Genera el bundle de produccion con `npm run build --workspace @scaccess/admin`;
+los archivos estaticos se emiten en `apps/admin/dist`. Configura las variables
+`VITE_*` (`VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) en
+el proveedor de hosting estatico antes de compilar y habilita el fallback SPA a
+`index.html` para resolver las rutas del cliente.
+
 ## Pendientes
 
-- Pruebas end-to-end contra la API real y Supabase Auth.
-- Documentacion OpenAPI/Swagger publicada para los clientes.
-- App movil de empleados (`apps/mobile`).
-- Confirmacion del modelo definitivo de datos, RLS y autenticacion de
-  dispositivos fisicos.
+- Firmware del controlador fisico ESP32-S3 y pruebas de sincronizacion contra la
+  API.
+- Integracion opcional de las pruebas E2E con Selenium
+  (`apps/admin/tests/selenium/`) en el pipeline CI.

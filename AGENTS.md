@@ -9,6 +9,12 @@ Sistema de Control de Acceso (proyecto academico, Universidad Tecnologica de
 Tijuana). Controla el acceso de empleados a areas mediante tarjetas RFID, con
 historial de eventos y un controlador ESP32-S3 que opera offline.
 
+## Consulta previa en NotebookLM (MCP)
+
+- Antes de hacer busquedas extensas en el codigo o pedir contexto de
+  arquitectura, consulta primero el servidor MCP `notebooklm` para obtener
+  unicamente los requisitos y contratos tecnicos necesarios.
+
 ## Stack confirmado (no cambiar sin aprobacion)
 
 - Monorepo con npm workspaces.

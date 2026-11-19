@@ -46,11 +46,27 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
         .catch(() => null)) as ApiErrorBody | null
       throw new MobileApiError(
         response.status,
-        errorBody?.error.code ?? 'UNKNOWN_ERROR',
-        errorBody?.error.message ?? `Error HTTP ${response.status}`,
+        errorBody?.error?.code ?? 'UNKNOWN_ERROR',
+        errorBody?.error?.message ?? `Error HTTP ${response.status}`,
       )
     }
     return (await response.json()) as T
+  } catch (err) {
+    if (err instanceof MobileApiError) {
+      throw err
+    }
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new MobileApiError(
+        0,
+        'TIMEOUT',
+        'El servidor tardó demasiado en responder. Inténtalo de nuevo.',
+      )
+    }
+    throw new MobileApiError(
+      0,
+      'NETWORK_ERROR',
+      'Sin conexión a Internet o servidor inaccesible. Inténtalo de nuevo.',
+    )
   } finally {
     clearTimeout(timer)
   }
