@@ -90,7 +90,14 @@ Antes de dar una tarea por terminada, ejecutar `lint`, `typecheck`, `test` y
 ## Git
 
 - `main`: rama estable; solo base inicial y merges aprobados.
-- `feat/backend-foundation`: rama de trabajo actual del backend.
+- **Regla obligatoria para cualquier cambio a futuro:** antes de modificar
+  codigo o documentacion, cambiar a la rama correspondiente conectada a `main`:
+  - `feat/api`: cambios del backend (`apps/api`, Prisma, contratos/OpenAPI).
+  - `feat/web`: cambios de la web administrativa (`apps/admin`).
+  - `feat/mobile`: cambios de la app movil (`apps/mobile`).
+- Si un cambio afecta `packages/shared` o configuracion transversal de la raiz,
+  trabajarlo en la rama del componente que lo impulsa y sincronizar el resto
+  tras su integracion aprobada en `main`.
 - No desarrollar directamente en `main`.
 - No hacer merge automatico, ni `force push`, ni reescribir historia remota.
 - No hacer commit, push ni crear ramas adicionales sin que la tarea lo pida.

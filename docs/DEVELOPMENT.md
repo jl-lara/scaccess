@@ -144,20 +144,24 @@ En PowerShell: `Invoke-RestMethod http://localhost:3000/api/v1/health`.
 ## Flujo Git
 
 - `main`: rama estable. Solo recibe la base inicial y merges aprobados.
-- `feat/backend-foundation`: rama de trabajo del backend.
+- Para cualquier cambio futuro se debe trabajar en la rama correspondiente
+  conectada a `main`:
+  - `feat/api`: backend (`apps/api`).
+  - `feat/web`: consola web administrativa (`apps/admin`).
+  - `feat/mobile`: aplicacion movil (`apps/mobile`).
 - No desarrollar directamente sobre `main`.
 - No hacer merge automatico ni `force push`.
 - No publicar cambios sin verificar lint, typecheck, test y build.
 
 ## Remoto GitHub
 
-Al inicializar la mision 01 no habia ningun remoto configurado. Cuando el
-lider tecnico proporcione la URL del repositorio:
+El remoto `origin` apunta al repositorio en GitHub y mantiene sincronizadas
+`main` y las tres ramas de trabajo (`feat/api`, `feat/web` y `feat/mobile`,
+todas cubiertas por `.github/workflows/ci.yml`):
 
 ```bash
-git remote add origin <GITHUB_REPOSITORY_URL>
-git push -u origin main
-git push -u origin feat/backend-foundation
+git switch feat/api      # o feat/web / feat/mobile segun el alcance
+git push -u origin <rama>
 ```
 
 Reglas: no reemplazar un remoto existente sin autorizacion, no usar
