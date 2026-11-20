@@ -1,16 +1,18 @@
+import type { UserAccountDto } from '@scaccess/shared'
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
-import type { UserAccountDto } from '@scaccess/shared'
-import { supabase } from '../config/supabase'
+
 import { getMe } from '../api/authApi'
-import { MobileApiError } from '../api/httpClient'
+import { supabase } from '../config/supabase'
+import { toSignInMessage } from '../utils/errorMessages'
 
 /**
  * Estado global de autenticacion de la app movil.
@@ -31,40 +33,14 @@ export interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-function toSignInMessage(error: unknown): string {
-  if (error instanceof MobileApiError) {
-    if (error.status === 0) {
-      return 'Sin conexión a Internet. Revisa tu conexión e inténtalo de nuevo.'
-    }
-    // 401/500 u otros errores de la API tras autenticarse.
-    return 'No se pudo iniciar sesión. Inténtalo de nuevo.'
-  }
-
-  const message = error instanceof Error ? error.message : String(error ?? '')
-  const lower = message.toLowerCase()
-
-  if (lower.includes('invalid login credentials') || lower.includes('invalid login')) {
-    return 'Correo o contraseña incorrectos.'
-  }
-  if (
-    lower.includes('failed to fetch') ||
-    lower.includes('network request failed') ||
-    lower.includes('networkerror') ||
-    lower.includes('timed out') ||
-    lower.includes('timeout') ||
-    lower.includes('econnrefused') ||
-    lower.includes('unable to resolve')
-  ) {
-    return 'Sin conexión a Internet. Revisa tu conexión e inténtalo de nuevo.'
-  }
-
-  return 'No se pudo iniciar sesión. Inténtalo de nuevo.'
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading')
   const [userAccount, setUserAccount] = useState<UserAccountDto | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const statusRef = useRef<AuthStatus>(status)
+  const manualSignOutRef = useRef(false)
+  statusRef.current = status
 
   useEffect(() => {
     let cancelled = false
@@ -102,8 +78,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void restoreSession()
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (cancelled || event !== 'SIGNED_OUT' || manualSignOutRef.current) {
+        return
+      }
+      if (statusRef.current === 'signedIn' || statusRef.current === 'unsupported') {
+        setUserAccount(null)
+        setError('Tu sesión expiró. Inicia sesión de nuevo.')
+        setStatus('signedOut')
+      }
+    })
+
     return () => {
       cancelled = true
+      subscription.unsubscribe()
     }
   }, [])
 
@@ -131,11 +121,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
+    manualSignOutRef.current = true
     try {
       await supabase.auth.signOut()
     } catch {
       // Ignora errores de red al cerrar sesion: el estado local se limpia igualmente.
     } finally {
+      manualSignOutRef.current = false
       setUserAccount(null)
       setError(null)
       setStatus('signedOut')

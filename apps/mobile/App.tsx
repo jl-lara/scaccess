@@ -3,22 +3,32 @@ import { View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 import { AuthProvider } from './src/context/AuthContext'
+import { ThemeProvider, useTheme } from './src/context/ThemeContext'
 import { AppNavigator } from './src/navigation/AppNavigator'
-import { colors } from './src/theme/colors'
+
+function AppShell() {
+  const { colors, isDark } = useTheme()
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <AppNavigator />
+    </View>
+  )
+}
 
 /**
  * Componente raiz de la app movil.
- * Envuelve la navegacion con el proveedor de area segura y el de autenticacion.
+ * Envuelve la navegacion con area segura, tema claro/oscuro y autenticacion.
  */
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <View style={{ flex: 1, backgroundColor: colors.background }}>
-          <StatusBar style="dark" />
-          <AppNavigator />
-        </View>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppShell />
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   )
 }

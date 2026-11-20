@@ -25,6 +25,12 @@ export const KNOWN_AREA_NAMES: Record<string, string> = {
   'b56485d7-1826-435a-b242-701750f87da5':
     'Laboratorio de Electrónica (LAB_ELECTRONICS)',
   '24abc3d9-6558-4c79-878a-8a662622d17c': 'Área de Pruebas QA (QA_TEST_AREA)',
+  'c89c95b3-0394-459f-b620-6d1b7281e76f':
+    'Oficinas Administrativas (ADMIN_OFFICES)',
+  '3c4a92ce-a31e-42cb-88f4-bbf468d5067b':
+    'Centro de Datos y Servidores (SERVER_ROOM)',
+  '5d4b72a4-acaa-42e3-93b7-9dfcad985f5b':
+    'Almacén General y Logística (WAREHOUSE_RFID)',
 }
 
 export function getAreaDisplayName(areaId: string): string {
