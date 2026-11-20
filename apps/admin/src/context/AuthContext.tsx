@@ -9,9 +9,8 @@ import {
 } from 'react'
 import type { RoleCode, UserAccountDto } from '@scaccess/shared'
 import { api, ApiClientError } from '../lib/api'
+import { ADMIN_ALLOWED_ROLES } from '../lib/permissions'
 import { getSupabaseClient } from '../lib/supabase'
-
-const ADMIN_ALLOWED_ROLES: readonly string[] = ['admin', 'operator', 'auditor']
 
 export interface AuthContextValue {
   user: UserAccountDto | null

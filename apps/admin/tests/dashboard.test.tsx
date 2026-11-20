@@ -152,6 +152,7 @@ describe('Admin formatters and role guards', () => {
     expect(hasAllowedAdminRole(['admin'])).toBe(true)
     expect(hasAllowedAdminRole(['operator'])).toBe(true)
     expect(hasAllowedAdminRole(['auditor'])).toBe(true)
+    expect(hasAllowedAdminRole(['viewer'])).toBe(true)
     expect(hasAllowedAdminRole(['employee'])).toBe(false)
   })
 })

@@ -17,6 +17,7 @@ import { COLD_START_HINT, TableMessage } from '../components/ui/TableMessage'
 import { api } from '../lib/api'
 import { DECISION_LABELS, REASON_LABELS, formatDateTimeWithSeconds } from '../lib/formatters'
 import { downloadAccessEventsPdf, type AccessEventReportRow } from '../lib/pdfReport'
+import { usePermissions } from '../lib/permissions'
 import {
   formatMetadata,
   getErrorMessage,
@@ -118,6 +119,7 @@ function formatReceivedLagShort(occurredAt: string, receivedAt: string): string 
 }
 
 export function AccessEventsPage() {
+  const { canViewCatalogs, canExportReports } = usePermissions()
   const [events, setEvents] = useState<AccessEventDto[]>([])
   const [employees, setEmployees] = useState<EmployeeDto[]>([])
   const [areas, setAreas] = useState<AreaDto[]>([])
@@ -142,9 +144,13 @@ export function AccessEventsPage() {
     async function loadSupportCatalogs() {
       try {
         const [employeeResponse, areaResponse, deviceResponse] = await Promise.all([
-          api.listEmployees({ page: 1, pageSize: 100 }),
+          canViewCatalogs
+            ? api.listEmployees({ page: 1, pageSize: 100 })
+            : Promise.resolve({ data: [] as EmployeeDto[] }),
           api.listAreas({ page: 1, pageSize: 100 }),
-          api.listAccessDevices({ page: 1, pageSize: 100 }),
+          canViewCatalogs
+            ? api.listAccessDevices({ page: 1, pageSize: 100 })
+            : Promise.resolve({ data: [] as AccessDeviceDto[] }),
         ])
         if (active) {
           setEmployees(employeeResponse.data)
@@ -168,7 +174,7 @@ export function AccessEventsPage() {
     return () => {
       active = false
     }
-  }, [supportReloadKey])
+  }, [supportReloadKey, canViewCatalogs])
 
   const loadEvents = useCallback(async () => {
     setLoading(true)
@@ -180,8 +186,8 @@ export function AccessEventsPage() {
         decision: appliedFilters.decision || undefined,
         reasonCode: appliedFilters.reasonCode || undefined,
         areaId: appliedFilters.areaId || undefined,
-        deviceId: appliedFilters.deviceId || undefined,
-        employeeId: appliedFilters.employeeId || undefined,
+        deviceId: canViewCatalogs ? appliedFilters.deviceId || undefined : undefined,
+        employeeId: canViewCatalogs ? appliedFilters.employeeId || undefined : undefined,
         cardUid: appliedFilters.cardUid || undefined,
         from: toIsoDateTime(appliedFilters.from) ?? undefined,
         to: toIsoDateTime(appliedFilters.to) ?? undefined,
@@ -193,7 +199,7 @@ export function AccessEventsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, appliedFilters])
+  }, [page, pageSize, appliedFilters, canViewCatalogs])
 
   useEffect(() => {
     void loadEvents()
@@ -344,15 +350,17 @@ export function AccessEventsPage() {
             <RefreshCw size={15} aria-hidden="true" />
             <span>{loading ? 'Actualizando…' : 'Actualizar bitacora'}</span>
           </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleExportPdf}
-            disabled={loading || events.length === 0}
-          >
-            <FileDown size={15} aria-hidden="true" />
-            <span>Exportar reporte PDF</span>
-          </button>
+          {canExportReports ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleExportPdf}
+              disabled={loading || events.length === 0}
+            >
+              <FileDown size={15} aria-hidden="true" />
+              <span>Exportar reporte PDF</span>
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -501,45 +509,49 @@ export function AccessEventsPage() {
               </select>
             </div>
 
-            <div className="form-field">
-              <label className="form-label" htmlFor="event-device-filter">
-                Controlador
-              </label>
-              <select
-                id="event-device-filter"
-                name="deviceId"
-                className="select-control"
-                value={draftFilters.deviceId}
-                onChange={(event) => updateDraft('deviceId', event.target.value)}
-              >
-                <option value="">Todos los controladores</option>
-                {devices.map((device) => (
-                  <option key={device.id} value={device.id}>
-                    {device.name} ({device.deviceCode})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {canViewCatalogs ? (
+              <>
+                <div className="form-field">
+                  <label className="form-label" htmlFor="event-device-filter">
+                    Controlador
+                  </label>
+                  <select
+                    id="event-device-filter"
+                    name="deviceId"
+                    className="select-control"
+                    value={draftFilters.deviceId}
+                    onChange={(event) => updateDraft('deviceId', event.target.value)}
+                  >
+                    <option value="">Todos los controladores</option>
+                    {devices.map((device) => (
+                      <option key={device.id} value={device.id}>
+                        {device.name} ({device.deviceCode})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="form-field">
-              <label className="form-label" htmlFor="event-employee-filter">
-                Empleado
-              </label>
-              <select
-                id="event-employee-filter"
-                name="employeeId"
-                className="select-control"
-                value={draftFilters.employeeId}
-                onChange={(event) => updateDraft('employeeId', event.target.value)}
-              >
-                <option value="">Todos los empleados</option>
-                {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.firstName} {employee.lastName} ({employee.employeeCode})
-                  </option>
-                ))}
-              </select>
-            </div>
+                <div className="form-field">
+                  <label className="form-label" htmlFor="event-employee-filter">
+                    Empleado
+                  </label>
+                  <select
+                    id="event-employee-filter"
+                    name="employeeId"
+                    className="select-control"
+                    value={draftFilters.employeeId}
+                    onChange={(event) => updateDraft('employeeId', event.target.value)}
+                  >
+                    <option value="">Todos los empleados</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.firstName} {employee.lastName} ({employee.employeeCode})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            ) : null}
 
             <div className="form-field">
               <label className="form-label" htmlFor="event-uid-filter">

@@ -253,6 +253,13 @@ export const ROLES: RoleDto[] = [
     description: 'Consulta del historial de accesos',
     isSystem: true,
   },
+  {
+    id: 'role-viewer',
+    code: 'viewer',
+    name: 'Monitor',
+    description: 'Monitoreo en vivo de panel, bitacora y croquis',
+    isSystem: true,
+  },
 ]
 
 export const USER_ADMIN: UserAccountDto = {

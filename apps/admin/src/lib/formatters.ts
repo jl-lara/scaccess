@@ -12,6 +12,7 @@ export const ROLE_LABELS: Record<RoleCode | string, string> = {
   admin: 'Administrador',
   operator: 'Operador',
   auditor: 'Auditor',
+  viewer: 'Monitor',
   employee: 'Empleado',
 }
 

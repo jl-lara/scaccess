@@ -29,6 +29,7 @@ import type {
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { COLD_START_HINT } from '../components/ui/TableMessage'
 import { api } from '../lib/api'
+import { usePermissions } from '../lib/permissions'
 import {
   DEVICE_STATUS_LABELS,
   REASON_LABELS,
@@ -206,6 +207,8 @@ interface BuildKpiCardsParams {
   activeAreasCount: number
   recentGrantedCount: number
   topDeniedReasonLabel: string
+  canViewCatalogs: boolean
+  canWriteCatalog: boolean
 }
 
 function deviceBadgeVariant(status: DeviceStatus): 'success' | 'warning' | 'neutral' {
@@ -224,6 +227,8 @@ function buildKpiCards({
   activeAreasCount,
   recentGrantedCount,
   topDeniedReasonLabel,
+  canViewCatalogs,
+  canWriteCatalog,
 }: BuildKpiCardsParams): KpiCardItem[] {
   const inactiveEmployees = summary
     ? Math.max(0, summary.employees.total - summary.employees.active)
@@ -242,6 +247,54 @@ function buildKpiCards({
     ? Math.max(0, summary.devices.total - summary.devices.active)
     : '—'
 
+  const areasCard: KpiCardItem = {
+    label: 'Areas protegidas',
+    Icon: Building2,
+    value: summary ? summary.areas.active : '—',
+    meta: `Total configuradas: ${summary ? summary.areas.total : '—'}`,
+    hoverDetails: [
+      `Areas inactivas: ${inactiveAreas}`,
+      `Con actividad reciente: ${activeAreasCount} area(s)`,
+    ],
+    to: '/areas',
+    linkText: canViewCatalogs ? 'Ver areas' : 'Ver croquis',
+    linkAriaLabel: canViewCatalogs ? 'Ver areas protegidas' : 'Ver croquis de areas protegidas',
+  }
+
+  const grantedCard: KpiCardItem = {
+    label: 'Accesos concedidos (24h)',
+    Icon: CheckCircle2,
+    value: summary ? summary.recentEvents24h.granted : '—',
+    meta: hasRecentActivity ? `${grantedPct}% de intentos recientes` : 'Sin actividad reciente',
+    hoverDetails: [
+      `Total evaluados (24h): ${total24h}`,
+      `En muestra reciente: ${recentGrantedCount} permitido(s)`,
+    ],
+    to: '/access-events',
+    linkText: 'Auditar',
+    linkAriaLabel: 'Auditar accesos concedidos',
+    variant: 'variant-granted',
+  }
+
+  const deniedCard: KpiCardItem = {
+    label: 'Accesos denegados (24h)',
+    Icon: ShieldAlert,
+    value: summary ? summary.recentEvents24h.denied : '—',
+    meta: hasRecentActivity ? `${deniedPct}% de rechazos (24h)` : 'Sin rechazos recientes',
+    hoverDetails: [
+      `Total evaluados (24h): ${total24h}`,
+      `Motivo principal: ${topDeniedReasonLabel}`,
+    ],
+    to: '/access-events',
+    linkText: 'Ver rechazos',
+    linkAriaLabel: 'Ver accesos denegados',
+    variant: 'variant-denied',
+  }
+
+  if (!canViewCatalogs) {
+    return [areasCard, grantedCard, deniedCard]
+  }
+
   return [
     {
       label: 'Empleados activos',
@@ -253,8 +306,8 @@ function buildKpiCards({
         `Personal activo: ${activeEmployeesPct}% del padron`,
       ],
       to: '/employees',
-      linkText: 'Gestionar',
-      linkAriaLabel: 'Gestionar empleados',
+      linkText: canWriteCatalog ? 'Gestionar' : 'Ver empleados',
+      linkAriaLabel: canWriteCatalog ? 'Gestionar empleados' : 'Ver empleados',
     },
     {
       label: 'Tarjetas RFID activas',
@@ -269,19 +322,7 @@ function buildKpiCards({
       linkText: 'Ver tarjetas',
       linkAriaLabel: 'Ver tarjetas RFID',
     },
-    {
-      label: 'Areas protegidas',
-      Icon: Building2,
-      value: summary ? summary.areas.active : '—',
-      meta: `Total configuradas: ${summary ? summary.areas.total : '—'}`,
-      hoverDetails: [
-        `Areas inactivas: ${inactiveAreas}`,
-        `Con actividad reciente: ${activeAreasCount} area(s)`,
-      ],
-      to: '/areas',
-      linkText: 'Ver areas',
-      linkAriaLabel: 'Ver areas protegidas',
-    },
+    areasCard,
     {
       label: 'Controladores ESP32',
       Icon: Cpu,
@@ -296,34 +337,8 @@ function buildKpiCards({
       linkAriaLabel: 'Revisar sincronizacion de controladores',
       variant: summary && outOfSync > 0 ? 'variant-warning' : 'variant-granted',
     },
-    {
-      label: 'Accesos concedidos (24h)',
-      Icon: CheckCircle2,
-      value: summary ? summary.recentEvents24h.granted : '—',
-      meta: hasRecentActivity ? `${grantedPct}% de intentos recientes` : 'Sin actividad reciente',
-      hoverDetails: [
-        `Total evaluados (24h): ${total24h}`,
-        `En muestra reciente: ${recentGrantedCount} permitido(s)`,
-      ],
-      to: '/access-events',
-      linkText: 'Auditar',
-      linkAriaLabel: 'Auditar accesos concedidos',
-      variant: 'variant-granted',
-    },
-    {
-      label: 'Accesos denegados (24h)',
-      Icon: ShieldAlert,
-      value: summary ? summary.recentEvents24h.denied : '—',
-      meta: hasRecentActivity ? `${deniedPct}% de rechazos (24h)` : 'Sin rechazos recientes',
-      hoverDetails: [
-        `Total evaluados (24h): ${total24h}`,
-        `Motivo principal: ${topDeniedReasonLabel}`,
-      ],
-      to: '/access-events',
-      linkText: 'Ver rechazos',
-      linkAriaLabel: 'Ver accesos denegados',
-      variant: 'variant-denied',
-    },
+    grantedCard,
+    deniedCard,
   ]
 }
 
@@ -335,6 +350,7 @@ function isFocusWithinTarget(
 }
 
 export function DashboardPage() {
+  const { canViewCatalogs, canWriteCatalog, profileLabel } = usePermissions()
   const [summary, setSummary] = useState<DashboardSummaryDto | null>(null)
   const [recentEvents, setRecentEvents] = useState<AccessEventDto[]>([])
   const [devices, setDevices] = useState<AccessDeviceDto[]>([])
@@ -356,9 +372,13 @@ export function DashboardPage() {
       const [summaryRes, eventsRes, devicesRes, areasRes, employeesRes] = await Promise.all([
         api.getDashboardSummary(),
         api.listAccessEvents({ page: 1, pageSize: 8 }),
-        api.listAccessDevices({ page: 1, pageSize: 20 }),
+        canViewCatalogs
+          ? api.listAccessDevices({ page: 1, pageSize: 20 })
+          : Promise.resolve({ data: [] as AccessDeviceDto[] }),
         api.listAreas({ page: 1, pageSize: 100 }),
-        api.listEmployees({ page: 1, pageSize: 100 }),
+        canViewCatalogs
+          ? api.listEmployees({ page: 1, pageSize: 100 })
+          : Promise.resolve({ data: [] as EmployeeDto[] }),
       ])
 
       setSummary(summaryRes)
@@ -382,7 +402,7 @@ export function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [canViewCatalogs])
 
   useEffect(() => {
     void loadDashboard()
@@ -502,18 +522,25 @@ export function DashboardPage() {
     activeAreasCount: areaActivity.length,
     recentGrantedCount,
     topDeniedReasonLabel,
+    canViewCatalogs,
+    canWriteCatalog,
   })
+
+  const dashboardDescription = !canViewCatalogs
+    ? 'Monitoreo en vivo de accesos recientes y estado por area.'
+    : !canWriteCatalog
+      ? 'Consulta operativa de indicadores, actividad reciente y estado de controladores.'
+      : 'Resumen operativo de accesos, acreditaciones y controladores ESP32-S3 (24h).'
 
   return (
     <div className="dashboard-stack">
       <div className="page-header">
         <div>
           <h1 className="page-title">Centro de Monitoreo Operativo</h1>
-          <p className="page-description">
-            Resumen operativo de accesos, acreditaciones y controladores ESP32-S3 (24h).
-          </p>
+          <p className="page-description">{dashboardDescription}</p>
         </div>
         <div className="dashboard-header-actions">
+          <StatusBadge variant="info">Perfil: {profileLabel}</StatusBadge>
           <button
             type="button"
             className="btn btn-secondary"
@@ -548,7 +575,7 @@ export function DashboardPage() {
         </div>
       ) : null}
 
-      {summary && summary.devices.outOfSync > 0 ? (
+      {canViewCatalogs && summary && summary.devices.outOfSync > 0 ? (
         <div className="alert-banner warning" role="status">
           <div className="dashboard-alert-copy">
             <AlertTriangle size={18} aria-hidden="true" />
@@ -622,7 +649,7 @@ export function DashboardPage() {
         })}
       </section>
 
-      <div className="dashboard-split">
+      <div className={canViewCatalogs ? 'dashboard-split' : 'dashboard-split dashboard-split--single'}>
         <section
           className="surface-card"
           aria-label="Últimos eventos de acceso registrados"
@@ -951,7 +978,8 @@ export function DashboardPage() {
           )}
         </section>
 
-        <section className="surface-card" aria-label="Estado de sincronización de dispositivos">
+        {canViewCatalogs ? (
+          <section className="surface-card" aria-label="Estado de sincronización de dispositivos">
           <div className="surface-card-header">
             <h2 className="surface-card-title">
               <Cpu size={18} aria-hidden="true" />
@@ -1062,7 +1090,8 @@ export function DashboardPage() {
               ) : null}
             </>
           )}
-        </section>
+          </section>
+        ) : null}
       </div>
     </div>
   )
