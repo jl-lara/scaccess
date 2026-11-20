@@ -127,11 +127,20 @@ permisos; revocar un permiso conserva el registro historico.
 
 ## Roles de la consola
 
-- **Administrador**: acceso completo, incluida la gestion de areas, dispositivos
-  y cuentas/roles.
-- **Operador**: consulta general y escritura sobre empleados, tarjetas RFID y
-  permisos.
-- **Auditor**: consulta de todos los modulos, sin acciones de escritura.
+- **Administrador (`admin`)**: control total de todos los modulos, incluida la
+  escritura de catalogos, exportacion de reportes PDF, simulador de accesos y
+  gestion de areas, controladores ESP32-S3 y cuentas/roles.
+- **Operador (`operator`)**: operacion diaria con consulta general, escritura
+  sobre empleados, tarjetas RFID y permisos, acceso al simulador y exportacion
+  PDF; sin administracion de areas, controladores ni cuentas/roles.
+- **Auditor (`auditor`)**: consulta en solo lectura del panel de control,
+  catalogos y bitacora con exportacion de reportes PDF; en `/areas` accede al
+  catalogo y al croquis en vivo, sin simulador ni acciones de escritura.
+- **Monitor (`viewer`)**: monitoreo en vivo acotado a `/` (indicadores de
+  areas protegidas y accesos de 24h sin catalogos ni salud de controladores),
+  `/access-events` (bitacora sin filtros de empleado/controlador ni exportacion
+  PDF) y `/areas` (vista directa de Croquis en vivo sin catalogo, simulador ni
+  listado de empleados).
 
 La interfaz oculta acciones no permitidas, pero la autorizacion real vive en el
 backend. Cada solicitud se valida contra el perfil del usuario y sus roles; las
@@ -141,8 +150,8 @@ restricciones visuales no sustituyen esa validacion.
 
 - `AuthContext` restaura la sesion con `supabase.auth.getSession()` y confirma
   el perfil contra `GET /api/v1/auth/me`.
-- Solo se admiten cuentas con rol `admin`, `operator` o `auditor`. Una cuenta de
-  empleado sin privilegios se cierra y se le invita a usar la app movil.
+- Solo se admiten cuentas con rol `admin`, `operator`, `auditor` o `viewer`. Una
+  cuenta de empleado sin privilegios se cierra y se le invita a usar la app movil.
 - El cliente HTTP obtiene el access token de Supabase en cada solicitud y lo
   envia como `Authorization: Bearer <token>`; no se manipulan tokens a mano.
 - Supabase persiste y refresca la sesion. `signOut` limpia la sesion local y

@@ -654,9 +654,14 @@ export type FloorPlanMode = 'floorplan' | 'simulator' | 'all'
 interface AreasFloorPlanProps {
   areas: AreaDto[]
   mode?: FloorPlanMode
+  canViewEmployees?: boolean
 }
 
-export function AreasFloorPlan({ areas, mode = 'all' }: AreasFloorPlanProps) {
+export function AreasFloorPlan({
+  areas,
+  mode = 'all',
+  canViewEmployees = true,
+}: AreasFloorPlanProps) {
   const showSimulator = mode !== 'floorplan'
   const [serverEvents, setServerEvents] = useState<AccessEventDto[]>([])
   const [employees, setEmployees] = useState<EmployeeDto[]>([])
@@ -685,7 +690,7 @@ export function AreasFloorPlan({ areas, mode = 'all' }: AreasFloorPlanProps) {
             ? Promise.resolve(api.listAccessEvents({ page: 1, pageSize: 100 })).catch(() => null)
             : Promise.resolve(null)
         const employeesPromise =
-          typeof api.listEmployees === 'function'
+          canViewEmployees && typeof api.listEmployees === 'function'
             ? Promise.resolve(api.listEmployees({ page: 1, pageSize: 100 })).catch(() => null)
             : Promise.resolve(null)
 
@@ -714,7 +719,7 @@ export function AreasFloorPlan({ areas, mode = 'all' }: AreasFloorPlanProps) {
     return () => {
       active = false
     }
-  }, [reloadKey])
+  }, [reloadKey, canViewEmployees])
 
   const areaById = useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas])
 

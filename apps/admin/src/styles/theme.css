@@ -2092,6 +2092,64 @@ textarea.input-control {
   box-shadow: 0 1px 2px var(--shadow-color);
 }
 
+/* RBAC shell indicators, route guards and single-column dashboard layout */
+
+.role-access-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.72rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent-primary-border);
+  background-color: var(--accent-primary-soft);
+  color: var(--accent-primary-hover);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.restricted-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.85rem;
+  max-width: 620px;
+  margin: 1rem auto 0;
+  padding: 1.6rem;
+  border-color: var(--status-warning-border);
+  background-color: var(--bg-surface);
+  box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+.restricted-card svg {
+  color: var(--status-warning);
+  flex-shrink: 0;
+}
+
+.restricted-card .page-title {
+  margin-bottom: 0;
+}
+
+.restricted-card-profile {
+  margin: 0;
+  padding: 0.4rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface-elevated);
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.restricted-card-description {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  max-width: 58ch;
+}
+
 /* Focus and motion */
 
 button:focus-visible,
@@ -2221,4 +2279,14 @@ a:focus-visible {
   .modal-footer .btn {
     flex: 1;
   }
+  .role-access-pill {
+    max-width: 180px;
+  }
+  .restricted-card {
+    padding: 1.25rem;
+  }
+}
+
+.dashboard-split--single {
+  grid-template-columns: minmax(0, 1fr);
 }

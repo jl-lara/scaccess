@@ -21,12 +21,14 @@ import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { api } from '../../lib/api'
 import { ROLE_LABELS } from '../../lib/formatters'
+import { usePermissions } from '../../lib/permissions'
 
 interface NavItem {
   to: string
   label: string
   icon: typeof LayoutDashboard
-  adminOnly?: boolean
+  requires?: 'catalogs' | 'users'
+  viewerLabel?: string
 }
 
 const TOP_NAV: NavItem[] = [
@@ -41,9 +43,14 @@ const CATALOG_NAV: NavItem[] = [
 ]
 
 const BOTTOM_NAV: NavItem[] = [
-  { to: '/permissions', label: 'Permisos de acceso', icon: KeyRound },
-  { to: '/areas', label: 'Areas fisicas', icon: Building2 },
-  { to: '/users', label: 'Cuentas y roles', icon: UserCog, adminOnly: true },
+  { to: '/permissions', label: 'Permisos de acceso', icon: KeyRound, requires: 'catalogs' },
+  {
+    to: '/areas',
+    label: 'Areas fisicas',
+    viewerLabel: 'Croquis en vivo',
+    icon: Building2,
+  },
+  { to: '/users', label: 'Cuentas y roles', icon: UserCog, requires: 'users' },
 ]
 
 function renderNavLink(item: NavItem) {
@@ -73,7 +80,8 @@ function readSidebarCollapsed(): boolean {
 
 export function AppShell() {
   const location = useLocation()
-  const { user, isAdmin, signOut } = useAuth()
+  const { user, signOut } = useAuth()
+  const { profileLabel, profileSummary, canViewCatalogs, canManageUsers } = usePermissions()
   const { theme, toggleTheme } = useTheme()
   const isDark = theme === 'dark'
   const [apiState, setApiState] = useState<'waking' | 'online' | 'offline'>('waking')
@@ -81,9 +89,11 @@ export function AppShell() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(readSidebarCollapsed)
   const [isCatalogSubmenuOpen, setIsCatalogSubmenuOpen] = useState(true)
 
-  const isCatalogRouteActive = CATALOG_NAV.some(
-    (item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`),
-  )
+  const isCatalogRouteActive =
+    canViewCatalogs &&
+    CATALOG_NAV.some(
+      (item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`),
+    )
 
   useEffect(() => {
     if (isCatalogRouteActive) {
@@ -126,7 +136,14 @@ export function AppShell() {
     }
   }, [])
 
-  const visibleBottomNav = BOTTOM_NAV.filter((item) => !item.adminOnly || isAdmin)
+  const visibleBottomNav = BOTTOM_NAV.filter((item) => {
+    if (item.requires === 'catalogs') return canViewCatalogs
+    if (item.requires === 'users') return canManageUsers
+    return true
+  }).map((item) => ({
+    ...item,
+    label: !canViewCatalogs && item.viewerLabel ? item.viewerLabel : item.label,
+  }))
 
   function toggleSidebar() {
     const nextCollapsed = !isSidebarCollapsed
@@ -188,28 +205,30 @@ export function AppShell() {
           <nav className="nav-list" aria-label="Menu administrativo">
             {TOP_NAV.map(renderNavLink)}
 
-            <div className="nav-submenu-group">
-              <button
-                type="button"
-                className={`nav-submenu-toggle${isCatalogRouteActive ? ' is-active-parent' : ''}`}
-                aria-expanded={isCatalogSubmenuOpen}
-                aria-controls="nav-catalog-submenu"
-                onClick={() => setIsCatalogSubmenuOpen((current) => !current)}
-              >
-                <span className="nav-submenu-toggle-left">
-                  <FolderKanban size={17} aria-hidden="true" />
-                  <span>Catálogos y equipos</span>
-                </span>
-                <ChevronDown
-                  size={15}
-                  aria-hidden="true"
-                  className={`nav-submenu-chevron${isCatalogSubmenuOpen ? ' is-open' : ''}`}
-                />
-              </button>
-              <div id="nav-catalog-submenu" className="nav-submenu" hidden={!isCatalogSubmenuOpen}>
-                {CATALOG_NAV.map(renderNavLink)}
+            {canViewCatalogs ? (
+              <div className="nav-submenu-group">
+                <button
+                  type="button"
+                  className={`nav-submenu-toggle${isCatalogRouteActive ? ' is-active-parent' : ''}`}
+                  aria-expanded={isCatalogSubmenuOpen}
+                  aria-controls="nav-catalog-submenu"
+                  onClick={() => setIsCatalogSubmenuOpen((current) => !current)}
+                >
+                  <span className="nav-submenu-toggle-left">
+                    <FolderKanban size={17} aria-hidden="true" />
+                    <span>Catálogos y equipos</span>
+                  </span>
+                  <ChevronDown
+                    size={15}
+                    aria-hidden="true"
+                    className={`nav-submenu-chevron${isCatalogSubmenuOpen ? ' is-open' : ''}`}
+                  />
+                </button>
+                <div id="nav-catalog-submenu" className="nav-submenu" hidden={!isCatalogSubmenuOpen}>
+                  {CATALOG_NAV.map(renderNavLink)}
+                </div>
               </div>
-            </div>
+            ) : null}
 
             {visibleBottomNav.map(renderNavLink)}
           </nav>
@@ -253,6 +272,9 @@ export function AppShell() {
             </div>
           </div>
           <div className="topbar-actions">
+            <span className="role-access-pill" title={`Perfil activo: ${profileLabel}`}>
+              {profileLabel} · {profileSummary}
+            </span>
             <button
               type="button"
               className="btn btn-secondary btn-sm theme-toggle"

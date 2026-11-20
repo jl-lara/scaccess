@@ -1,5 +1,6 @@
 import { lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { RoleGuard } from './components/auth/RoleGuard'
 import { AppShell } from './components/layout/AppShell'
 import { useAuth } from './context/AuthContext'
 import { LoginPage } from './pages/LoginPage'
@@ -63,12 +64,47 @@ export function App() {
       <Route element={<ProtectedRoutes />}>
         <Route index element={<DashboardPage />} />
         <Route path="access-events" element={<AccessEventsPage />} />
-        <Route path="employees" element={<EmployeesPage />} />
-        <Route path="credentials" element={<CredentialsPage />} />
-        <Route path="permissions" element={<PermissionsPage />} />
+        <Route
+          path="employees"
+          element={
+            <RoleGuard require="catalogs">
+              <EmployeesPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="credentials"
+          element={
+            <RoleGuard require="catalogs">
+              <CredentialsPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="permissions"
+          element={
+            <RoleGuard require="catalogs">
+              <PermissionsPage />
+            </RoleGuard>
+          }
+        />
         <Route path="areas" element={<AreasPage />} />
-        <Route path="devices" element={<DevicesPage />} />
-        <Route path="users" element={<UsersPage />} />
+        <Route
+          path="devices"
+          element={
+            <RoleGuard require="catalogs">
+              <DevicesPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="users"
+          element={
+            <RoleGuard require="admin">
+              <UsersPage />
+            </RoleGuard>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

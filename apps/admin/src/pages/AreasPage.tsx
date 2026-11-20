@@ -7,9 +7,9 @@ import { NoticeBanner } from '../components/ui/NoticeBanner'
 import { Pagination } from '../components/ui/Pagination'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { COLD_START_HINT, TableMessage } from '../components/ui/TableMessage'
-import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 import { formatDateTime } from '../lib/formatters'
+import { usePermissions } from '../lib/permissions'
 import { getErrorMessage } from '../lib/validation'
 
 const PAGE_SIZE = 20
@@ -29,8 +29,10 @@ type AreasSection = 'catalog' | 'floorplan' | 'simulator'
 type AreaModalState = { mode: 'create' } | { mode: 'edit'; area: AreaDto } | null
 
 export function AreasPage() {
-  const { isAdmin } = useAuth()
-  const [activeSection, setActiveSection] = useState<AreasSection>('catalog')
+  const { isAdmin, canViewCatalogs, canUseSimulator } = usePermissions()
+  const [activeSection, setActiveSection] = useState<AreasSection>(() =>
+    canViewCatalogs ? 'catalog' : 'floorplan',
+  )
   const [areas, setAreas] = useState<AreaDto[]>([])
   const [pagination, setPagination] = useState<PaginationMeta>(EMPTY_PAGINATION)
   const [page, setPage] = useState(1)
@@ -42,13 +44,19 @@ export function AreasPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [modal, setModal] = useState<AreaModalState>(null)
 
+  const effectiveSection: AreasSection = !canViewCatalogs
+    ? 'floorplan'
+    : activeSection === 'simulator' && !canUseSimulator
+      ? 'catalog'
+      : activeSection
+
   const loadAreas = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const response = await api.listAreas({
         page,
-        pageSize: PAGE_SIZE,
+        pageSize: canViewCatalogs ? PAGE_SIZE : 100,
         isActive: activeFilter === '' ? undefined : activeFilter === 'true',
         search: appliedSearch || undefined,
       })
@@ -64,7 +72,7 @@ export function AreasPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, activeFilter, appliedSearch])
+  }, [page, canViewCatalogs, activeFilter, appliedSearch])
 
   useEffect(() => {
     void loadAreas()
@@ -100,9 +108,13 @@ export function AreasPage() {
     <div className="page-stack">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Areas fisicas</h1>
+          <h1 className="page-title">{canViewCatalogs ? 'Areas fisicas' : 'Croquis en vivo'}</h1>
           <p className="page-description">
-            Zonas protegidas por controladores ESP32-S3, ocupacion en vivo y simulacion de accesos.
+            {!canViewCatalogs
+              ? 'Monitoreo en tiempo real de ocupacion y accesos por zona fisica.'
+              : canUseSimulator
+                ? 'Zonas protegidas por controladores ESP32-S3, ocupacion en vivo y simulacion de accesos.'
+                : 'Zonas protegidas por controladores ESP32-S3 y ocupacion en vivo.'}
           </p>
         </div>
         {isAdmin ? (
@@ -151,49 +163,53 @@ export function AreasPage() {
         </NoticeBanner>
       ) : null}
 
-      {!isAdmin ? (
+      {canViewCatalogs && !isAdmin ? (
         <NoticeBanner variant="warning">
           Puedes consultar el catalogo, pero solo un administrador puede crear o modificar areas.
         </NoticeBanner>
       ) : null}
 
-      <div className="section-tabs" role="tablist" aria-label="Secciones de areas fisicas">
-        <button
-          type="button"
-          role="tab"
-          id="tab-areas-catalog"
-          aria-selected={activeSection === 'catalog'}
-          aria-controls="panel-areas-catalog"
-          className={`section-tab${activeSection === 'catalog' ? ' is-active' : ''}`}
-          onClick={() => setActiveSection('catalog')}
-        >
-          Catalogo de areas
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="tab-areas-floorplan"
-          aria-selected={activeSection === 'floorplan'}
-          aria-controls="panel-areas-floorplan"
-          className={`section-tab${activeSection === 'floorplan' ? ' is-active' : ''}`}
-          onClick={() => setActiveSection('floorplan')}
-        >
-          Croquis en vivo
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="tab-areas-simulator"
-          aria-selected={activeSection === 'simulator'}
-          aria-controls="panel-areas-simulator"
-          className={`section-tab${activeSection === 'simulator' ? ' is-active' : ''}`}
-          onClick={() => setActiveSection('simulator')}
-        >
-          Simulador de accesos
-        </button>
-      </div>
+      {canViewCatalogs ? (
+        <div className="section-tabs" role="tablist" aria-label="Secciones de areas fisicas">
+          <button
+            type="button"
+            role="tab"
+            id="tab-areas-catalog"
+            aria-selected={effectiveSection === 'catalog'}
+            aria-controls="panel-areas-catalog"
+            className={`section-tab${effectiveSection === 'catalog' ? ' is-active' : ''}`}
+            onClick={() => setActiveSection('catalog')}
+          >
+            Catalogo de areas
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-areas-floorplan"
+            aria-selected={effectiveSection === 'floorplan'}
+            aria-controls="panel-areas-floorplan"
+            className={`section-tab${effectiveSection === 'floorplan' ? ' is-active' : ''}`}
+            onClick={() => setActiveSection('floorplan')}
+          >
+            Croquis en vivo
+          </button>
+          {canUseSimulator ? (
+            <button
+              type="button"
+              role="tab"
+              id="tab-areas-simulator"
+              aria-selected={effectiveSection === 'simulator'}
+              aria-controls="panel-areas-simulator"
+              className={`section-tab${effectiveSection === 'simulator' ? ' is-active' : ''}`}
+              onClick={() => setActiveSection('simulator')}
+            >
+              Simulador de accesos
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
-      {activeSection === 'catalog' ? (
+      {canViewCatalogs && effectiveSection === 'catalog' ? (
         <div id="panel-areas-catalog" role="tabpanel" aria-labelledby="tab-areas-catalog">
           <section className="surface-card" aria-label="Catalogo de areas">
         <form
@@ -364,14 +380,22 @@ export function AreasPage() {
         </div>
       ) : null}
 
-      {activeSection === 'floorplan' ? (
-        <div id="panel-areas-floorplan" role="tabpanel" aria-labelledby="tab-areas-floorplan">
+      {effectiveSection === 'floorplan' ? (
+        <div
+          id="panel-areas-floorplan"
+          role={canViewCatalogs ? 'tabpanel' : undefined}
+          aria-labelledby={canViewCatalogs ? 'tab-areas-floorplan' : undefined}
+        >
           {/* El croquis consulta eventos y empleados por su cuenta con guardas para mocks antiguos. */}
-          <AreasFloorPlan areas={areas} mode="floorplan" />
+          <AreasFloorPlan
+            areas={areas}
+            mode="floorplan"
+            canViewEmployees={canViewCatalogs}
+          />
         </div>
       ) : null}
 
-      {activeSection === 'simulator' ? (
+      {canUseSimulator && effectiveSection === 'simulator' ? (
         <div id="panel-areas-simulator" role="tabpanel" aria-labelledby="tab-areas-simulator">
           <AreasFloorPlan areas={areas} mode="simulator" />
         </div>
