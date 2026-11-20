@@ -162,7 +162,7 @@ export interface DeviceEventSyncResponse {
 // Contratos HTTP de la API administrativa
 // ---------------------------------------------------------------------------
 
-export type RoleCode = 'admin' | 'operator' | 'auditor'
+export type RoleCode = 'admin' | 'operator' | 'auditor' | 'viewer'
 
 export interface PaginationMeta {
   page: number

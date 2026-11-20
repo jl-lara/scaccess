@@ -44,11 +44,30 @@ nombres de campos, rutas y codigos van en ingles.
 
 ## Autorizacion
 
-| Rol | Alcance |
-| --- | --- |
-| `admin` | Acceso completo, incluidos usuarios, roles y credenciales de dispositivo. |
-| `operator` | Empleados, tarjetas, permisos y lectura de dispositivos e historial. |
-| `auditor` | Solo lectura: areas, empleados, tarjetas, permisos, dispositivos, historial y dashboard. |
+| Rol | Nombre | Alcance |
+| --- | --- | --- |
+| `admin` | Administrador | Acceso completo, incluidos usuarios, roles, areas y credenciales de dispositivo. |
+| `operator` | Operador | Empleados, tarjetas, permisos y lectura de areas, dispositivos, historial y dashboard. |
+| `auditor` | Auditor | Solo lectura completa: areas, empleados, tarjetas, permisos, dispositivos, historial y dashboard. |
+| `viewer` | Monitor | Solo lectura de monitoreo en vivo: dashboard, areas (croquis) e historial general; sin exportacion, sin catalogos ni escritura. |
+
+### Matriz de acceso en monitoreo frente a catalogos y escritura
+
+| Recurso / Endpoint | `admin` | `operator` | `auditor` | `viewer` |
+| --- | --- | --- | --- | --- |
+| `GET /dashboard/summary` | 200 | 200 | 200 | 200 |
+| `GET /areas`, `GET /areas/{id}` | 200 | 200 | 200 | 200 |
+| `GET /access-events`, `GET /access-events/{id}` | 200 | 200 | 200 | 200 |
+| `POST /areas`, `PATCH /areas/{id}` | Si | 403 | 403 | 403 |
+| `GET /employees`, `GET /employees/{id}` | 200 | 200 | 200 | 403 |
+| `POST /employees`, `PATCH /employees/{id}` | Si | Si | 403 | 403 |
+| `GET /credentials`, `GET /credentials/{id}` | 200 | 200 | 200 | 403 |
+| `POST /credentials`, `PATCH /credentials/{id}` | Si | Si | 403 | 403 |
+| `GET /access-permissions` | 200 | 200 | 200 | 403 |
+| `POST /access-permissions`, `POST /access-permissions/{id}/revoke` | Si | Si | 403 | 403 |
+| `GET /access-devices`, `GET /access-devices/{id}`, `GET /access-devices/{id}/sync-state` | 200 | 200 | 200 | 403 |
+| `POST`/`PATCH` en `/access-devices` y credenciales | Si | 403 | 403 | 403 |
+| `GET /roles`, `GET`/`POST`/`PATCH` en `/users` | Si | 403 | 403 | 403 |
 
 Los endpoints moviles (`/me/access-events`) exigen una cuenta vinculada a un
 empleado (`employeeId` no nulo). La identidad del empleado sale siempre del
@@ -67,35 +86,35 @@ token autenticado, nunca de un parametro del cliente.
 | `POST` | `/api/v1/users` | Crear cuenta (admin). |
 | `GET` | `/api/v1/users/{id}` | Obtener cuenta (admin). |
 | `PATCH` | `/api/v1/users/{id}` | Actualizar cuenta (admin). |
-| `GET` | `/api/v1/areas` | Listar areas. |
+| `GET` | `/api/v1/areas` | Listar areas (admin/operator/auditor/viewer). |
 | `POST` | `/api/v1/areas` | Crear area (admin). |
-| `GET` | `/api/v1/areas/{id}` | Obtener area. |
+| `GET` | `/api/v1/areas/{id}` | Obtener area (admin/operator/auditor/viewer). |
 | `PATCH` | `/api/v1/areas/{id}` | Actualizar area (admin). |
-| `GET` | `/api/v1/employees` | Listar empleados. |
+| `GET` | `/api/v1/employees` | Listar empleados (admin/operator/auditor). |
 | `POST` | `/api/v1/employees` | Crear empleado (admin/operator). |
-| `GET` | `/api/v1/employees/{id}` | Obtener empleado. |
+| `GET` | `/api/v1/employees/{id}` | Obtener empleado (admin/operator/auditor). |
 | `PATCH` | `/api/v1/employees/{id}` | Actualizar empleado (admin/operator). |
-| `GET` | `/api/v1/credentials` | Listar tarjetas RFID. |
+| `GET` | `/api/v1/credentials` | Listar tarjetas RFID (admin/operator/auditor). |
 | `POST` | `/api/v1/credentials` | Registrar tarjeta (admin/operator). |
-| `GET` | `/api/v1/credentials/{id}` | Obtener tarjeta. |
+| `GET` | `/api/v1/credentials/{id}` | Obtener tarjeta (admin/operator/auditor). |
 | `PATCH` | `/api/v1/credentials/{id}` | Actualizar tarjeta (admin/operator). |
-| `GET` | `/api/v1/access-permissions` | Listar permisos. |
+| `GET` | `/api/v1/access-permissions` | Listar permisos (admin/operator/auditor). |
 | `POST` | `/api/v1/access-permissions` | Otorgar permiso (admin/operator). |
 | `POST` | `/api/v1/access-permissions/{id}/revoke` | Revocar permiso (admin/operator). |
-| `GET` | `/api/v1/access-devices` | Listar dispositivos. |
+| `GET` | `/api/v1/access-devices` | Listar dispositivos (admin/operator/auditor). |
 | `POST` | `/api/v1/access-devices` | Registrar dispositivo (admin). |
-| `GET` | `/api/v1/access-devices/{id}` | Obtener dispositivo. |
+| `GET` | `/api/v1/access-devices/{id}` | Obtener dispositivo (admin/operator/auditor). |
 | `PATCH` | `/api/v1/access-devices/{id}` | Actualizar dispositivo (admin). |
 | `POST` | `/api/v1/access-devices/{id}/credentials` | Emitir credencial (admin). |
 | `POST` | `/api/v1/access-devices/{id}/credentials/{credentialId}/revoke` | Revocar credencial (admin). |
-| `GET` | `/api/v1/access-devices/{id}/sync-state` | Estado de sincronizacion. |
+| `GET` | `/api/v1/access-devices/{id}/sync-state` | Estado de sincronizacion (admin/operator/auditor). |
 | `GET` | `/api/v1/devices/{deviceId}/sync` | Descargar configuracion offline (dispositivo). |
 | `POST` | `/api/v1/devices/{deviceId}/events/sync` | Subir eventos offline (dispositivo). |
-| `GET` | `/api/v1/access-events` | Historial general (admin/operator/auditor). |
-| `GET` | `/api/v1/access-events/{id}` | Detalle de evento (admin/operator/auditor). |
+| `GET` | `/api/v1/access-events` | Historial general (admin/operator/auditor/viewer). |
+| `GET` | `/api/v1/access-events/{id}` | Detalle de evento (admin/operator/auditor/viewer). |
 | `GET` | `/api/v1/me/access-events` | Historial personal (cuenta de empleado). |
 | `GET` | `/api/v1/me/access-events/{id}` | Detalle personal (cuenta de empleado). |
-| `GET` | `/api/v1/dashboard/summary` | Resumen agregado (admin/operator/auditor). |
+| `GET` | `/api/v1/dashboard/summary` | Resumen agregado (admin/operator/auditor/viewer). |
 
 ## Sistema y documentacion
 
@@ -171,7 +190,8 @@ deshabilitada; `404` si la cuenta no existe en la base local.
 ]
 ```
 
-El seed idempotente crea o actualiza los roles `admin`, `operator` y `auditor`.
+El seed idempotente crea o actualiza los roles `admin`, `operator`, `auditor` y
+`viewer`.
 
 ### Usuarios
 
@@ -188,37 +208,42 @@ unicidad (`authUserId`, `email`, `employeeId`) responden `409`.
 
 ### Areas
 
-- `GET /api/v1/areas`: filtros `isActive` y `search`, mas paginacion.
+- `GET /api/v1/areas` (admin/operator/auditor/viewer): filtros `isActive` y
+  `search`, mas paginacion.
 - `POST /api/v1/areas` (admin): `code`, `name`, `description`, `isActive`,
   `timezone`. Responde `201`.
-- `GET /api/v1/areas/{id}` y `PATCH /api/v1/areas/{id}` (admin para PATCH).
+- `GET /api/v1/areas/{id}` (admin/operator/auditor/viewer) y
+  `PATCH /api/v1/areas/{id}` (admin para PATCH).
 
 Respuesta `201`/`200`: `AreaDto` con `id`, `code`, `name`, `description`,
 `isActive`, `timezone`, `createdAt`, `updatedAt`.
 
 ### Empleados
 
-- `GET /api/v1/employees`: filtros `status` (`active`/`inactive`/`suspended`),
-  `department` y `search`, mas paginacion.
+- `GET /api/v1/employees` (admin/operator/auditor; `viewer` recibe `403`):
+  filtros `status` (`active`/`inactive`/`suspended`), `department` y `search`,
+  mas paginacion.
 - `POST /api/v1/employees` (admin/operator): `employeeCode`, `firstName`,
   `lastName`, `email`, `department`, `position`, `status`, `hiredAt`.
-- `GET`/`PATCH /api/v1/employees/{id}`: `PATCH` para admin/operator.
+- `GET`/`PATCH /api/v1/employees/{id}`: `GET` para admin/operator/auditor;
+  `PATCH` para admin/operator.
 
 ### Tarjetas RFID (credenciales)
 
-- `GET /api/v1/credentials`: filtros `employeeId`, `status`
-  (`active`/`blocked`/`lost`/`retired`) y `cardUid`, mas paginacion.
+- `GET /api/v1/credentials` (admin/operator/auditor; `viewer` recibe `403`):
+  filtros `employeeId`, `status` (`active`/`blocked`/`lost`/`retired`) y
+  `cardUid`, mas paginacion.
 - `POST /api/v1/credentials` (admin/operator): `employeeId`, `cardUid`,
   `label`, `status` (por defecto `active`). El UID se normaliza a mayusculas
   sin separadores y debe tener 8-32 caracteres hexadecimales con longitud par.
-- `GET`/`PATCH /api/v1/credentials/{id}`: el PATCH permite `label`, `status` y
-  `deactivationReason`. Las tarjetas no se eliminan: se bloquean, reportan como
-  perdidas o se retiran.
+- `GET`/`PATCH /api/v1/credentials/{id}`: `GET` para admin/operator/auditor;
+  el `PATCH` (admin/operator) permite `label`, `status` y `deactivationReason`.
+  Las tarjetas no se eliminan: se bloquean, reportan como perdidas o se retiran.
 
 ### Permisos de acceso
 
-- `GET /api/v1/access-permissions`: filtros `employeeId`, `areaId` y
-  `activeOnly`, mas paginacion.
+- `GET /api/v1/access-permissions` (admin/operator/auditor; `viewer` recibe
+  `403`): filtros `employeeId`, `areaId` y `activeOnly`, mas paginacion.
 - `POST /api/v1/access-permissions` (admin/operator): `employeeId`, `areaId`,
   `validFrom`, `validTo` y `schedule`. El servidor registra `grantedById` a
   partir del usuario autenticado. Responde `201`.
@@ -229,11 +254,13 @@ Respuesta `201`/`200`: `AreaDto` con `id`, `code`, `name`, `description`,
 
 ### Dispositivos
 
-- `GET /api/v1/access-devices`: listado paginado.
+- `GET /api/v1/access-devices` (admin/operator/auditor; `viewer` recibe
+  `403`): listado paginado.
 - `POST /api/v1/access-devices` (admin): `deviceCode`, `name`, `location`,
   `hardwareModel`, `firmwareVersion`, `status`, `areaIds`. Responde `201`.
-- `GET`/`PATCH /api/v1/access-devices/{id}`: el PATCH es solo para admin;
-  reemplazar `areaIds` incrementa `configVersion` para forzar resincronizacion.
+- `GET`/`PATCH /api/v1/access-devices/{id}`: `GET` para
+  admin/operator/auditor; el `PATCH` es solo para admin y reemplazar `areaIds`
+  incrementa `configVersion` para forzar resincronizacion.
 - `POST /api/v1/access-devices/{id}/credentials` (admin): emite una credencial
   y devuelve el token completo **una sola vez**:
 
@@ -251,7 +278,7 @@ Respuesta `201`/`200`: `AreaDto` con `id`, `code`, `name`, `description`,
   El servidor solo almacena el hash SHA-256 del secreto.
 - `POST /api/v1/access-devices/{id}/credentials/{credentialId}/revoke`
   (admin): revocacion logica e idempotente; responde `204`.
-- `GET /api/v1/access-devices/{id}/sync-state`: estado de sincronizacion
+- `GET /api/v1/access-devices/{id}/sync-state` (admin/operator/auditor): estado de sincronizacion
   (`lastSyncRequestedAt`, `lastSyncCompletedAt`, `lastEventReceivedAt`,
   `lastEventOccurredAt`, `pendingEventCountReported`, `lastErrorCode`,
   `lastErrorAt`, `configVersion`).
@@ -389,6 +416,8 @@ Errores:
 
 ### GET /api/v1/access-events
 
+Roles permitidos: `admin`, `operator`, `auditor` y `viewer`.
+
 Historial general inmutable (sin `PATCH` ni `DELETE`). Filtros: `employeeId`,
 `deviceId`, `areaId`, `decision` (`granted`/`denied`), `reasonCode`, `cardUid`,
 `from` y `to` (fechas ISO sobre `occurredAt`), mas paginacion. Se ordena por
@@ -399,7 +428,8 @@ Cada evento (`AccessEventDto`) incluye: `id`, `deviceId`, `clientEventId`,
 `credentialId`, `areaId`, `decision`, `reasonCode`, `occurredAt`, `receivedAt`,
 `deviceSequence`, `metadata` y `createdAt`.
 
-`GET /api/v1/access-events/{id}` devuelve el detalle o `404`.
+`GET /api/v1/access-events/{id}` (roles `admin`, `operator`, `auditor`,
+`viewer`) devuelve el detalle o `404`.
 
 ### GET /api/v1/me/access-events
 
@@ -411,6 +441,8 @@ no esta vinculada a un empleado.
 otro empleado responde `404` para no revelar su existencia.
 
 ### GET /api/v1/dashboard/summary
+
+Roles permitidos: `admin`, `operator`, `auditor` y `viewer`.
 
 Resumen agregado para la web administrativa:
 

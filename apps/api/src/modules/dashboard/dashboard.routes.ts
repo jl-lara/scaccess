@@ -4,4 +4,9 @@ import { getSummary } from './dashboard.controller.js'
 
 export const dashboardRouter = Router()
 
-dashboardRouter.get('/summary', requireAuth, requireRoles('admin', 'operator', 'auditor'), getSummary)
+dashboardRouter.get(
+  '/summary',
+  requireAuth,
+  requireRoles('admin', 'operator', 'auditor', 'viewer'),
+  getSummary,
+)

@@ -257,7 +257,7 @@ export const openApiDocument: OpenApiDocument = {
         required: ['id', 'code', 'name', 'description', 'isSystem'],
         properties: {
           id: { type: 'string', format: 'uuid' },
-          code: { type: 'string', examples: ['admin', 'operator', 'auditor'] },
+          code: { type: 'string', examples: ['admin', 'operator', 'auditor', 'viewer'] },
           name: { type: 'string' },
           description: { type: ['string', 'null'] },
           isSystem: { type: 'boolean' },
@@ -1134,7 +1134,7 @@ export const openApiDocument: OpenApiDocument = {
       get: {
         tags: ['Catalogo'],
         summary: 'Listar areas',
-        description: 'Roles admin, operator y auditor.',
+        description: 'Roles admin, operator, auditor y viewer.',
         operationId: 'listAreas',
         security: supabaseSecurity,
         parameters: [
@@ -1181,7 +1181,7 @@ export const openApiDocument: OpenApiDocument = {
       get: {
         tags: ['Catalogo'],
         summary: 'Obtener area',
-        description: 'Roles admin, operator y auditor.',
+        description: 'Roles admin, operator, auditor y viewer.',
         operationId: 'getArea',
         security: supabaseSecurity,
         parameters: [{ $ref: '#/components/parameters/Id' }],
@@ -1656,8 +1656,8 @@ export const openApiDocument: OpenApiDocument = {
         tags: ['Historial'],
         summary: 'Listar eventos de acceso',
         description:
-          'Roles admin, operator y auditor. El historial es inmutable y se ' +
-          'ordena por `occurredAt` descendente.',
+          'Roles admin, operator, auditor y viewer. El historial es inmutable ' +
+          'y se ordena por `occurredAt` descendente.',
         operationId: 'listAccessEvents',
         security: supabaseSecurity,
         parameters: [
@@ -1697,7 +1697,7 @@ export const openApiDocument: OpenApiDocument = {
       get: {
         tags: ['Historial'],
         summary: 'Obtener evento de acceso',
-        description: 'Roles admin, operator y auditor.',
+        description: 'Roles admin, operator, auditor y viewer.',
         operationId: 'getAccessEvent',
         security: supabaseSecurity,
         parameters: [{ $ref: '#/components/parameters/Id' }],
@@ -1750,8 +1750,8 @@ export const openApiDocument: OpenApiDocument = {
         tags: ['Dashboard'],
         summary: 'Resumen del dashboard',
         description:
-          'Roles admin, operator y auditor. Agrega empleados, credenciales, ' +
-          'areas, dispositivos y eventos de las ultimas 24 horas.',
+          'Roles admin, operator, auditor y viewer. Agrega empleados, ' +
+          'credenciales, areas, dispositivos y eventos de las ultimas 24 horas.',
         operationId: 'getDashboardSummary',
         security: supabaseSecurity,
         responses: {

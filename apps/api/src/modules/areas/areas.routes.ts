@@ -17,7 +17,7 @@ export function createAreasRouter(service: AreasService = createAreasService()):
   router.get(
     '/',
     requireAuth,
-    requireRoles('admin', 'operator', 'auditor'),
+    requireRoles('admin', 'operator', 'auditor', 'viewer'),
     validateRequest({ query: areaListQuerySchema }),
     controller.list,
   )
@@ -25,7 +25,7 @@ export function createAreasRouter(service: AreasService = createAreasService()):
   router.get(
     '/:id',
     requireAuth,
-    requireRoles('admin', 'operator', 'auditor'),
+    requireRoles('admin', 'operator', 'auditor', 'viewer'),
     validateRequest({ params: areaIdParamsSchema }),
     controller.getById,
   )

@@ -686,6 +686,15 @@ const operatorUser: AuthenticatedUser = {
   roles: ['operator'],
 }
 
+const viewerUser: AuthenticatedUser = {
+  id: '55555555-5555-4555-8555-555555555555',
+  authUserId: '54545454-5454-4454-8454-545454545454',
+  employeeId: null,
+  email: 'viewer@example.com',
+  status: 'active',
+  roles: ['viewer'],
+}
+
 const employeeOnlyUser: AuthenticatedUser = {
   id: '66666666-6666-4666-8666-666666666666',
   authUserId: '65656565-6565-4565-8565-656565656565',
@@ -745,6 +754,13 @@ function seedBaseData(): void {
     description: 'Consulta del historial de accesos y reportes',
     isSystem: true,
   })
+  fake.seedRole({
+    code: 'viewer',
+    name: 'Monitor',
+    description:
+      'Monitoreo en vivo de panel, bitacora y croquis de areas sin exportacion ni catalogos',
+    isSystem: true,
+  })
 
   fake.seedEmployee({
     id: ADMIN_EMPLOYEE_ID,
@@ -797,6 +813,9 @@ beforeEach(() => {
     }
     if (token === 'operator-token') {
       return operatorUser
+    }
+    if (token === 'viewer-token') {
+      return viewerUser
     }
     if (token === 'employee-token') {
       return employeeOnlyUser
@@ -944,6 +963,7 @@ describe('roles and RBAC', () => {
       'admin',
       'auditor',
       'operator',
+      'viewer',
     ])
     expect(response.body[0]).toMatchObject({
       code: 'admin',
@@ -952,7 +972,7 @@ describe('roles and RBAC', () => {
     })
   })
 
-  it.each(['auditor-token', 'operator-token', 'employee-token'])(
+  it.each(['auditor-token', 'operator-token', 'viewer-token', 'employee-token'])(
     'forbids non-admin token (%s) from reading the role catalog',
     async (token) => {
       const response = await request(app)
@@ -966,13 +986,16 @@ describe('roles and RBAC', () => {
     },
   )
 
-  it.each(['auditor-token', 'operator-token', 'employee-token'])(
+  it.each(['auditor-token', 'operator-token', 'viewer-token', 'employee-token'])(
     'forbids non-admin token (%s) from all /users endpoints',
     async (token) => {
       const listRes = await request(app)
         .get('/users')
         .set('Authorization', `Bearer ${token}`)
       expect(listRes.status).toBe(403)
+      expect(listRes.body).toEqual({
+        error: { code: 'FORBIDDEN', message: 'Insufficient permissions' },
+      })
 
       const detailRes = await request(app)
         .get(`/users/${AUDITOR_USER_ID}`)
@@ -999,7 +1022,7 @@ describe('roles and RBAC', () => {
     },
   )
 
-  it.each(['admin-token', 'operator-token', 'auditor-token'])(
+  it.each(['admin-token', 'operator-token', 'auditor-token', 'viewer-token'])(
     'allows %s to read the dashboard summary',
     async (token) => {
       const response = await request(app)
