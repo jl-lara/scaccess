@@ -26,7 +26,7 @@ export const accessEventsRouter = Router()
 accessEventsRouter.get(
   '/',
   requireAuth,
-  requireRoles('admin', 'operator', 'auditor'),
+  requireRoles('admin', 'operator', 'auditor', 'viewer'),
   validateRequest({ query: accessEventListQuerySchema }),
   listAccessEventsHandler,
 )
@@ -34,7 +34,7 @@ accessEventsRouter.get(
 accessEventsRouter.get(
   '/:id',
   requireAuth,
-  requireRoles('admin', 'operator', 'auditor'),
+  requireRoles('admin', 'operator', 'auditor', 'viewer'),
   validateRequest({ params: accessEventIdParamsSchema }),
   getAccessEventHandler,
 )

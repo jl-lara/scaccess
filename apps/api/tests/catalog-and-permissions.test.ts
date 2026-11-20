@@ -87,6 +87,15 @@ const auditorUser: AuthenticatedUser = {
   roles: ['auditor'],
 }
 
+const viewerUser: AuthenticatedUser = {
+  id: 'user-viewer',
+  authUserId: 'auth-user-viewer',
+  employeeId: null,
+  email: 'viewer@example.com',
+  status: 'active',
+  roles: ['viewer'],
+}
+
 const employeeOnlyUser: AuthenticatedUser = {
   id: 'user-employee',
   authUserId: 'auth-user-employee',
@@ -838,6 +847,44 @@ describe('areas module', () => {
     expect(invalidQuery.status).toBe(400)
     expect(invalidQuery.body).toMatchObject({ error: { code: 'VALIDATION_ERROR' } })
   })
+
+  it('allows viewer to list and retrieve areas, and forbids creating or updating areas with 403', async () => {
+    const context = createTestApp()
+    context.areaStore.add(areaRecord())
+
+    currentUser = viewerUser
+
+    const listRes = await request(context.app)
+      .get('/areas')
+      .set('Authorization', AUTHORIZATION)
+
+    expect(listRes.status).toBe(200)
+    expect(listRes.body.data).toHaveLength(1)
+    expect(listRes.body.data[0].id).toBe(AREA_1_ID)
+
+    const detailRes = await request(context.app)
+      .get(`/areas/${AREA_1_ID}`)
+      .set('Authorization', AUTHORIZATION)
+
+    expect(detailRes.status).toBe(200)
+    expect(detailRes.body).toMatchObject({ id: AREA_1_ID, code: 'LAB' })
+
+    const createRes = await request(context.app)
+      .post('/areas')
+      .set('Authorization', AUTHORIZATION)
+      .send({ code: 'NEW_AREA', name: 'Area nueva' })
+
+    expect(createRes.status).toBe(403)
+    expect(createRes.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
+
+    const patchRes = await request(context.app)
+      .patch(`/areas/${AREA_1_ID}`)
+      .set('Authorization', AUTHORIZATION)
+      .send({ name: 'Intento viewer' })
+
+    expect(patchRes.status).toBe(403)
+    expect(patchRes.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
+  })
 })
 
 describe('employees module', () => {
@@ -956,6 +1003,26 @@ describe('employees module', () => {
 
     expect(response.status).toBe(403)
     expect(response.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
+  })
+
+  it('forbids viewer from reading employees with 403', async () => {
+    currentUser = viewerUser
+    const context = createTestApp()
+    context.employeeStore.add(employeeRecord())
+
+    const listRes = await request(context.app)
+      .get('/employees')
+      .set('Authorization', AUTHORIZATION)
+
+    expect(listRes.status).toBe(403)
+    expect(listRes.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
+
+    const detailRes = await request(context.app)
+      .get(`/employees/${EMPLOYEE_1_ID}`)
+      .set('Authorization', AUTHORIZATION)
+
+    expect(detailRes.status).toBe(403)
+    expect(detailRes.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
   })
 
   it('returns 404 for an unknown employee', async () => {
@@ -1194,6 +1261,26 @@ describe('credentials module', () => {
     expect(response.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
   })
 
+  it('forbids viewer from reading credentials with 403', async () => {
+    currentUser = viewerUser
+    const context = createTestApp()
+    context.credentialStore.add(credentialRecord())
+
+    const listRes = await request(context.app)
+      .get('/credentials')
+      .set('Authorization', AUTHORIZATION)
+
+    expect(listRes.status).toBe(403)
+    expect(listRes.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
+
+    const detailRes = await request(context.app)
+      .get(`/credentials/${CREDENTIAL_1_ID}`)
+      .set('Authorization', AUTHORIZATION)
+
+    expect(detailRes.status).toBe(403)
+    expect(detailRes.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
+  })
+
   it('lists credentials with normalized card UID, employee and status filters', async () => {
     const context = createTestApp()
     context.credentialStore.add(credentialRecord())
@@ -1423,6 +1510,19 @@ describe('access permissions module', () => {
 
     expect(response.status).toBe(403)
     expect(response.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
+  })
+
+  it('forbids viewer from reading access permissions with 403', async () => {
+    currentUser = viewerUser
+    const context = createTestApp()
+    context.permissionStore.add(permissionRecord())
+
+    const listRes = await request(context.app)
+      .get('/access-permissions')
+      .set('Authorization', AUTHORIZATION)
+
+    expect(listRes.status).toBe(403)
+    expect(listRes.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
   })
 
   it('lists permissions and filters by active status', async () => {

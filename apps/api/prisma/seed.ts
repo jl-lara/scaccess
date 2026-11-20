@@ -16,6 +16,11 @@ const systemRoles = [
     name: 'Auditor',
     description: 'Consulta del historial de accesos y reportes',
   },
+  {
+    code: 'viewer',
+    name: 'Monitor',
+    description: 'Monitoreo en vivo de panel, bitacora y croquis de areas sin exportacion ni catalogos',
+  },
 ] as const
 
 const baseAreas = [

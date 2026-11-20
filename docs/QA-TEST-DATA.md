@@ -37,12 +37,16 @@ Documento temporal de referencia para los equipos de **Web Administrativa**, **A
 
 Para iniciar sesión desde la **Web Administrativa** o la **App Móvil**, autentica contra Supabase Auth (`supabase.auth.signInWithPassword({ email, password })` o `POST ${SUPABASE_URL}/auth/v1/token?grant_type=password`) y envía el `access_token` obtenido en el header `Authorization: Bearer <access_token>` a la API.
 
-| Perfil | Email | Contraseña | Rol (`roles.code`) | Estado | `user_accounts.id` | `auth_user_id` (Supabase) | `employeeId` vinculado |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Administrador (Web)** | `admin.qa@scaccess.local` | `QaAccess!2026#Admin` | `admin` | `active` | `1c80be2b-f012-436a-ba48-14d82cfbb555` | `53f47b59-d04c-4c31-830b-e9433a669e8f` | `null` |
-| **Empleado (App Móvil)** | `employee.qa@scaccess.local` | `QaAccess!2026#Employee` | `employee` | `active` | `aefe89ff-37e9-424f-a89d-ebc21c561052` | `1dc29dbc-daea-4845-b9b9-0352e9d42aa6` | `a2bd1126-20b0-455b-83a2-4f3b9f4813ef` |
+| Perfil | Email | Contraseña | Rol (`roles.code`) | Estado | `user_accounts.id` | `auth_user_id` (Supabase) | `employeeId` vinculado | Alcance esperado en consola web / app |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Administrador (Web)** | `admin.qa@scaccess.local` | `QaAccess!2026#Admin` | `admin` | `active` | `1c80be2b-f012-436a-ba48-14d82cfbb555` | `53f47b59-d04c-4c31-830b-e9433a669e8f` | `null` | Acceso completo: dashboard, empleados, tarjetas RFID, áreas, permisos, dispositivos/credenciales, historial, usuarios y roles. |
+| **Operador (Web)** | `operator.qa@scaccess.local` | `QaAccess!2026#Operator` | `operator` | `active` | `fad14303-bbc1-40e8-9152-255b516986f0` | `2c210164-e093-47fe-8c52-78166ca2cc92` | `null` | Gestión de empleados, tarjetas RFID y permisos; lectura de dashboard, áreas, dispositivos e historial. Sin usuarios/roles ni administración de áreas o credenciales de dispositivo. |
+| **Auditor (Web)** | `auditor.qa@scaccess.local` | `QaAccess!2026#Auditor` | `auditor` | `active` | `4a2ed354-8500-4551-8831-295be0ba55cb` | `318fcf18-a8f1-435a-b3c1-0f0eeaed93d5` | `null` | Solo lectura y reportes: dashboard, croquis de áreas, catálogos operativos (empleados, tarjetas, áreas, permisos, dispositivos) e historial de accesos con exportación. Sin escritura ni usuarios/roles. |
+| **Monitor (Web)** | `monitor.qa@scaccess.local` | `QaAccess!2026#Monitor` | `viewer` | `active` | `a8a58da6-0226-48b0-9736-4418f9e2cb46` | `1ab00060-b013-4179-957b-e94d03339f06` | `null` | Monitoreo en vivo de solo lectura: panel (dashboard), bitácora y croquis de áreas, sin exportación ni acceso a catálogos o usuarios/roles. |
+| **Empleado (App Móvil)** | `employee.qa@scaccess.local` | `QaAccess!2026#Employee` | `employee` | `active` | `aefe89ff-37e9-424f-a89d-ebc21c561052` | `1dc29dbc-daea-4845-b9b9-0352e9d42aa6` | `a2bd1126-20b0-455b-83a2-4f3b9f4813ef` | Cuenta móvil vinculada a `EMP-QA-001` (`/api/v1/auth/me` y `/api/v1/me/access-events`); sin acceso a consola web (`403 FORBIDDEN` en rutas administrativas). |
 
-- La cuenta **Administrador** tiene acceso completo a los endpoints administrativos (`/employees`, `/credentials`, `/areas`, `/access-permissions`, `/access-devices`, `/access-events`, `/users`, `/roles`, `/dashboard/summary`).
+- Las 4 cuentas web QA (`admin`, `operator`, `auditor`, `viewer`) no están vinculadas a un empleado (`employeeId: null`).
+- La cuenta **Administrador** tiene acceso completo a todos los endpoints administrativos (`/employees`, `/credentials`, `/areas`, `/access-permissions`, `/access-devices`, `/access-events`, `/users`, `/roles`, `/dashboard/summary`).
 - La cuenta **Empleado** está vinculada al empleado `EMP-QA-001` y sirve para probar la **App Móvil**: puede consultar `/api/v1/auth/me` y `/api/v1/me/access-events`, y recibe `403 FORBIDDEN` si intenta consultar rutas administrativas como `/api/v1/employees`.
 - Los nuevos empleados `EMP-UTT-*` **no tienen cuenta móvil**; solo existen como registros de empleado para pruebas administrativas y de dispositivos.
 
@@ -55,6 +59,7 @@ Para iniciar sesión desde la **Web Administrativa** o la **App Móvil**, autent
 | `admin` | Administrador | `true` | Acceso total a la administración del sistema |
 | `operator` | Operador | `true` | Gestión de empleados, tarjetas, permisos y dispositivos |
 | `auditor` | Auditor | `true` | Consulta de historial de accesos y reportes |
+| `viewer` | Monitor | `true` | Monitoreo en vivo de panel, bitácora y croquis de áreas sin exportación ni catálogos |
 | `employee` | Empleado | `false` | Rol no administrativo para cuentas móviles de empleados |
 
 ---

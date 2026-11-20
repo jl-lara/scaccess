@@ -853,6 +853,15 @@ const auditorUser: AuthenticatedUser = {
   roles: ['auditor'],
 }
 
+const viewerUser: AuthenticatedUser = {
+  id: 'user-viewer',
+  authUserId: 'auth-user-viewer',
+  employeeId: null,
+  email: 'viewer@example.com',
+  status: 'active',
+  roles: ['viewer'],
+}
+
 const employeeBUser: AuthenticatedUser = {
   id: 'user-b',
   authUserId: 'auth-user-b',
@@ -877,6 +886,9 @@ beforeEach(() => {
     }
     if (token === 'auditor-token') {
       return auditorUser
+    }
+    if (token === 'viewer-token') {
+      return viewerUser
     }
     if (token === 'employee-b-token') {
       return employeeBUser
@@ -1214,6 +1226,34 @@ describe('access device provisioning', () => {
       .get(`/api/v1/devices/${deviceId}/sync`)
       .set('Authorization', `Bearer ${String(cred2.body.token)}`)
     expect(syncWithNew.status).toBe(200)
+  })
+
+  it('forbids viewer from listing or inspecting access devices with 403', async () => {
+    const device = db.addDevice({
+      deviceCode: 'ESP32-VIEWER-CHECK',
+      name: 'Dispositivo restringido',
+    })
+
+    const listRes = await request(app)
+      .get('/api/v1/access-devices')
+      .set('Authorization', 'Bearer viewer-token')
+
+    expect(listRes.status).toBe(403)
+    expect(listRes.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
+
+    const detailRes = await request(app)
+      .get(`/api/v1/access-devices/${device.id}`)
+      .set('Authorization', 'Bearer viewer-token')
+
+    expect(detailRes.status).toBe(403)
+    expect(detailRes.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
+
+    const syncStateRes = await request(app)
+      .get(`/api/v1/access-devices/${device.id}/sync-state`)
+      .set('Authorization', 'Bearer viewer-token')
+
+    expect(syncStateRes.status).toBe(403)
+    expect(syncStateRes.body).toMatchObject({ error: { code: 'FORBIDDEN' } })
   })
 })
 
@@ -1713,5 +1753,27 @@ describe('access event history', () => {
       .set('Authorization', 'Bearer admin-token')
 
     expect(deletion.status).toBe(404)
+  })
+
+  it('allows viewer to list and inspect global access events', async () => {
+    const { employeeAEvent } = seedHistoryFixture()
+
+    const listRes = await request(app)
+      .get('/api/v1/access-events')
+      .set('Authorization', 'Bearer viewer-token')
+
+    expect(listRes.status).toBe(200)
+    expect(listRes.body.pagination.total).toBe(3)
+    expect(listRes.body.data).toHaveLength(3)
+
+    const detailRes = await request(app)
+      .get(`/api/v1/access-events/${employeeAEvent.id}`)
+      .set('Authorization', 'Bearer viewer-token')
+
+    expect(detailRes.status).toBe(200)
+    expect(detailRes.body).toMatchObject({
+      id: employeeAEvent.id,
+      clientEventId: 'event-employee-a',
+    })
   })
 })
