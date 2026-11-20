@@ -1,7 +1,9 @@
 import type { AccessDecision } from '@scaccess/shared'
+import { useMemo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 
-import { colors, radii, spacing } from '../theme/colors'
+import { useTheme } from '../context/ThemeContext'
+import { radii, spacing, type ThemeColors } from '../theme/colors'
 import { DECISION_LABELS } from '../utils/areaLabels'
 
 interface DecisionBadgeProps {
@@ -14,6 +16,8 @@ interface DecisionBadgeProps {
  * por lo que no depende solo del color para comunicar el estado.
  */
 export function DecisionBadge({ decision }: DecisionBadgeProps) {
+  const { colors } = useTheme()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const isGranted = decision === 'granted'
 
   return (
@@ -25,30 +29,32 @@ export function DecisionBadge({ decision }: DecisionBadgeProps) {
   )
 }
 
-const styles = StyleSheet.create({
-  badge: {
-    alignSelf: 'flex-start',
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  granted: {
-    backgroundColor: colors.grantedSoft,
-    borderColor: colors.grantedBorder,
-  },
-  denied: {
-    backgroundColor: colors.deniedSoft,
-    borderColor: colors.deniedBorder,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  grantedText: {
-    color: colors.grantedText,
-  },
-  deniedText: {
-    color: colors.deniedText,
-  },
-})
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    badge: {
+      alignSelf: 'flex-start',
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    granted: {
+      backgroundColor: colors.grantedSoft,
+      borderColor: colors.grantedBorder,
+    },
+    denied: {
+      backgroundColor: colors.deniedSoft,
+      borderColor: colors.deniedBorder,
+    },
+    label: {
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    grantedText: {
+      color: colors.grantedText,
+    },
+    deniedText: {
+      color: colors.deniedText,
+    },
+  })
+}

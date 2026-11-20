@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
-import { colors, radii, spacing } from '../theme/colors'
+import { useTheme } from '../context/ThemeContext'
+import { radii, spacing, type ThemeColors } from '../theme/colors'
 
 interface EmptyStateProps {
   title: string
@@ -14,6 +16,9 @@ interface EmptyStateProps {
  * `actionLabel` y `onAction`, una accion primaria.
  */
 export function EmptyState({ title, message, actionLabel, onAction }: EmptyStateProps) {
+  const { colors } = useTheme()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{title}</Text>
@@ -30,39 +35,44 @@ export function EmptyState({ title, message, actionLabel, onAction }: EmptyState
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  message: {
-    color: colors.textMuted,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  button: {
-    backgroundColor: colors.brand,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    marginTop: spacing.sm,
-  },
-  buttonPressed: {
-    opacity: 0.85,
-  },
-  buttonLabel: {
-    color: colors.brandContrast,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-})
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.borderSubtle,
+      padding: spacing.xl,
+      gap: spacing.sm,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+    message: {
+      color: colors.textMuted,
+      fontSize: 14,
+      lineHeight: 20,
+      textAlign: 'center',
+    },
+    button: {
+      backgroundColor: colors.brand,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      marginTop: spacing.sm,
+    },
+    buttonPressed: {
+      opacity: 0.85,
+    },
+    buttonLabel: {
+      color: colors.brandContrast,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+  })
+}

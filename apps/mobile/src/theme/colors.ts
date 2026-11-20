@@ -1,13 +1,56 @@
 /**
  * Paleta de colores de la app movil, derivada del logotipo de Accesa.
  *
- * El isotipo y el wordmark usan la tinta `#1E1427` sobre fondo blanco
- * `#FFFFFF` (ver `logo/` en la raiz del repositorio). Estos tokens replican
- * la paleta clara que ya usa la web administrativa (`apps/admin/src/styles/theme.css`)
- * para mantener una identidad visual coherente entre plataformas.
+ * El isotipo y el wordmark cuentan con versiones claras (`#1E1427` sobre
+ * blanco) y oscuras transparentes para adaptarse dinamicamente a modo claro
+ * y modo oscuro, replicando los tokens de `apps/admin/src/styles/theme.css`.
  */
 
-export const colors = {
+export type ThemeMode = 'light' | 'dark'
+
+export interface ThemeColors {
+  brand: string
+  brandHover: string
+  brandSoft: string
+  brandBorder: string
+  brandContrast: string
+
+  background: string
+  surface: string
+  surfaceElevated: string
+  surfaceHover: string
+
+  textPrimary: string
+  textSecondary: string
+  textMuted: string
+  textOnBrand: string
+
+  borderSubtle: string
+  borderStrong: string
+
+  granted: string
+  grantedSoft: string
+  grantedBorder: string
+  grantedText: string
+
+  denied: string
+  deniedSoft: string
+  deniedBorder: string
+  deniedText: string
+
+  warning: string
+  warningSoft: string
+  warningBorder: string
+  warningText: string
+
+  codeBg: string
+  codeText: string
+
+  shadow: string
+  white: string
+}
+
+export const lightColors: ThemeColors = {
   /** Tinta principal del logo (morado-negro). */
   brand: '#1E1427',
   brandHover: '#312240',
@@ -52,7 +95,65 @@ export const colors = {
 
   shadow: 'rgba(30, 20, 39, 0.12)',
   white: '#FFFFFF',
-} as const
+}
+
+export const darkColors: ThemeColors = {
+  brand: '#EDE8F5',
+  brandHover: '#FFFFFF',
+  brandSoft: 'rgba(237, 232, 245, 0.11)',
+  brandBorder: 'rgba(237, 232, 245, 0.28)',
+  brandContrast: '#1E1427',
+
+  background: '#120C18',
+  surface: '#1E1427',
+  surfaceElevated: '#271B33',
+  surfaceHover: '#322340',
+
+  textPrimary: '#F7F5FA',
+  textSecondary: '#C6BDD1',
+  textMuted: '#8E829D',
+  textOnBrand: '#1E1427',
+
+  borderSubtle: 'rgba(247, 245, 250, 0.09)',
+  borderStrong: 'rgba(247, 245, 250, 0.18)',
+
+  granted: '#10B981',
+  grantedSoft: 'rgba(16, 185, 129, 0.14)',
+  grantedBorder: 'rgba(16, 185, 129, 0.32)',
+  grantedText: '#6EE7B7',
+
+  denied: '#F43F5E',
+  deniedSoft: 'rgba(244, 63, 94, 0.14)',
+  deniedBorder: 'rgba(244, 63, 94, 0.32)',
+  deniedText: '#FDA4AF',
+
+  warning: '#F59E0B',
+  warningSoft: 'rgba(245, 158, 11, 0.14)',
+  warningBorder: 'rgba(245, 158, 11, 0.32)',
+  warningText: '#FCD34D',
+
+  codeBg: '#120C18',
+  codeText: '#EDE8F5',
+
+  shadow: 'rgba(0, 0, 0, 0.45)',
+  white: '#FFFFFF',
+}
+
+export const colors = lightColors
+
+export function getThemeColors(mode: ThemeMode): ThemeColors {
+  return mode === 'dark' ? darkColors : lightColors
+}
+
+export function resolveThemeMode(
+  stored: string | null | undefined,
+  systemScheme: string | null | undefined,
+): ThemeMode {
+  if (stored === 'light' || stored === 'dark') {
+    return stored
+  }
+  return systemScheme === 'dark' ? 'dark' : 'light'
+}
 
 export const spacing = {
   xs: 4,

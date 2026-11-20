@@ -4,10 +4,12 @@
     "slug": "scaccess-mobile",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "scheme": "scaccess",
     "newArchEnabled": true,
+    "icon": "./assets/isotipo.png",
     "splash": {
+      "image": "./assets/isotipo_oscuro_transparente.png",
       "backgroundColor": "#1E1427",
       "resizeMode": "contain"
     },
@@ -16,7 +18,11 @@
       "bundleIdentifier": "com.scaccess.mobile"
     },
     "android": {
-      "package": "com.scaccess.mobile"
+      "package": "com.scaccess.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/isotipo.png",
+        "backgroundColor": "#FFFFFF"
+      }
     },
     "plugins": [
       "expo-secure-store"
