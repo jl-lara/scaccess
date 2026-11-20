@@ -237,7 +237,7 @@ contenedor.
 | --- | --- |
 | `NODE_ENV` | `production` |
 | `PORT` | `3000` (definido en `render.yaml`; la API lee `process.env.PORT`) |
-| `CORS_ORIGIN` | Origen de la web administrativa separado por comas; usar `*` solo en pruebas |
+| `CORS_ORIGIN` | Origenes permitidos separados por coma, sin ruta `/login` ni barra final (ej. `https://accesa-admin.onrender.com,http://localhost:5173`); usar `*` solo en pruebas |
 | `DATABASE_URL` | Supavisor Pooler, modo transaccion, puerto `6543` (ver abajo) |
 | `DIRECT_URL` | Supavisor Pooler, modo sesion, puerto `5432` (ver abajo) |
 | `SUPABASE_URL` | URL del proyecto Supabase |
@@ -246,6 +246,13 @@ contenedor.
 
 La version de Node la fija la imagen base `node:22-alpine`; con
 `runtime: docker` no se usa `NODE_VERSION`.
+
+### Web administrativa en Render y Supabase Auth
+
+- **URL desplegada de la consola:** `https://accesa-admin.onrender.com` (servicio estatico `accesa-admin` en `render.yaml`, build `npm ci --include=dev && npm run build:admin`, publish `apps/admin/dist`).
+- **Regla SPA obligatoria en Render (`Redirects/Rewrites`):** agregar `/*` -> `/index.html` (`Rewrite`), para evitar `404` al abrir o recargar `/login` u otras rutas.
+- **CORS en Render (`scaccess-api` -> Environment):** mantener `CORS_ORIGIN=https://accesa-admin.onrender.com,http://localhost:5173` (solo origen, sin `/login` ni barra final).
+- **Supabase Dashboard (`Authentication > URL Configuration`):** configurar `Site URL` como `https://accesa-admin.onrender.com` y agregar en `Redirect URLs`: `https://accesa-admin.onrender.com/**` y `http://localhost:5173/**`.
 
 ### Conexion a Supabase desde Render (Supavisor / IPv4)
 

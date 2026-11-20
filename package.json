@@ -18,6 +18,7 @@
     "dev:admin": "npm run dev --workspace @scaccess/admin",
     "start": "npm run start --workspace @scaccess/api",
     "build": "npm run build --workspaces --if-present",
+    "build:admin": "npm run build --workspace @scaccess/shared && npm run build --workspace @scaccess/admin",
     "pretest": "npm run build --workspace @scaccess/shared",
     "test": "npm run test --workspaces --if-present",
     "test:watch": "npm run test:watch --workspace @scaccess/api",

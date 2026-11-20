@@ -201,11 +201,22 @@ npm run build
 
 ## Despliegue estatico
 
-Genera el bundle de produccion con `npm run build --workspace @scaccess/admin`;
+Genera el bundle de produccion con `npm run build:admin` (o
+`npm run build --workspace @scaccess/shared && npm run build --workspace @scaccess/admin`);
 los archivos estaticos se emiten en `apps/admin/dist`. Configura las variables
 `VITE_*` (`VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) en
-el proveedor de hosting estatico antes de compilar y habilita el fallback SPA a
-`index.html` para resolver las rutas del cliente.
+el proveedor de hosting estatico antes de compilar y habilita el fallback SPA
+(`/* -> /index.html`). En el repositorio, [render.yaml](../../render.yaml) ya
+incluye el servicio estatico `accesa-admin` con esta configuracion lista para
+Render.
+
+Para el despliegue publicado en `https://accesa-admin.onrender.com`:
+
+- En la API (`scaccess-api`), incluye `https://accesa-admin.onrender.com` (solo
+  origen, sin ruta `/login`) dentro de `CORS_ORIGIN`.
+- En Supabase Auth (`Authentication > URL Configuration`), configura `Site URL`
+  como `https://accesa-admin.onrender.com` y agrega
+  `https://accesa-admin.onrender.com/**` a `Redirect URLs`.
 
 ## Pendientes
 
