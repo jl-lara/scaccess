@@ -29,6 +29,7 @@
     "prisma:migrate:deploy": "npm run prisma:migrate:deploy --workspace @scaccess/api",
     "prisma:seed": "npm run prisma:seed --workspace @scaccess/api",
     "prisma:studio": "npm run prisma:studio --workspace @scaccess/api",
+    "db:backup": "node scripts/backup-db.mjs",
     "docker:build": "docker build -t scaccess-api:latest .",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",

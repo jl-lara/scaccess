@@ -752,6 +752,23 @@ describe('areas module', () => {
 
     expect(emptyPatch.status).toBe(400)
     expect(emptyPatch.body).toMatchObject({ error: { code: 'VALIDATION_ERROR' } })
+
+    const numericArea = await request(context.app)
+      .post('/areas')
+      .set('Authorization', AUTHORIZATION)
+      .send({ code: '123456432345', name: '12345643234' })
+
+    expect(numericArea.status).toBe(400)
+    expect(numericArea.body).toMatchObject({ error: { code: 'VALIDATION_ERROR' } })
+
+    context.areaStore.add(areaRecord())
+    const numericPatch = await request(context.app)
+      .patch(`/areas/${AREA_1_ID}`)
+      .set('Authorization', AUTHORIZATION)
+      .send({ name: '987654321' })
+
+    expect(numericPatch.status).toBe(400)
+    expect(numericPatch.body).toMatchObject({ error: { code: 'VALIDATION_ERROR' } })
   })
 
   it('updates an area and bumps the device configuration version', async () => {
@@ -990,6 +1007,29 @@ describe('employees module', () => {
 
     expect(response.status).toBe(400)
     expect(response.body).toMatchObject({ error: { code: 'VALIDATION_ERROR' } })
+
+    const numericFields = await request(context.app)
+      .post('/employees')
+      .set('Authorization', AUTHORIZATION)
+      .send({
+        employeeCode: 'EMP-999',
+        firstName: '12345432123',
+        lastName: '12343213',
+        department: '99999',
+        position: '1345654321',
+      })
+
+    expect(numericFields.status).toBe(400)
+    expect(numericFields.body).toMatchObject({ error: { code: 'VALIDATION_ERROR' } })
+
+    context.employeeStore.add(employeeRecord())
+    const numericNamePatch = await request(context.app)
+      .patch(`/employees/${EMPLOYEE_1_ID}`)
+      .set('Authorization', AUTHORIZATION)
+      .send({ firstName: 'Ana2' })
+
+    expect(numericNamePatch.status).toBe(400)
+    expect(numericNamePatch.body).toMatchObject({ error: { code: 'VALIDATION_ERROR' } })
   })
 
   it('forbids auditors from creating employees with 403', async () => {
@@ -1497,6 +1537,19 @@ describe('access permissions module', () => {
     expect(invalidRange.body).toMatchObject({
       error: { code: 'BAD_REQUEST', message: 'validTo must be after validFrom' },
     })
+
+    const tooFarFuture = new Date(Date.now() + 6 * 366 * 24 * 60 * 60 * 1000).toISOString()
+    const excessiveRange = await request(context.app)
+      .post('/access-permissions')
+      .set('Authorization', AUTHORIZATION)
+      .send({
+        employeeId: EMPLOYEE_1_ID,
+        areaId: AREA_1_ID,
+        validTo: tooFarFuture,
+      })
+
+    expect(excessiveRange.status).toBe(400)
+    expect(excessiveRange.body).toMatchObject({ error: { code: 'VALIDATION_ERROR' } })
   })
 
   it('forbids auditors from granting permissions with 403', async () => {

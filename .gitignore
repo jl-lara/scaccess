@@ -43,6 +43,9 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 *.dump
+*.dump.enc
+*.dump.sha256
+backups/
 
 # Python cache
 __pycache__/
