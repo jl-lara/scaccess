@@ -1,4 +1,3 @@
-import * as SecureStore from 'expo-secure-store'
 import {
   createContext,
   useCallback,
@@ -8,8 +7,9 @@ import {
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
-import { Platform, useColorScheme } from 'react-native'
+import { useColorScheme } from 'react-native'
 
+import { appStorage } from '../config/storage'
 import {
   getThemeColors,
   resolveThemeMode,
@@ -34,15 +34,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [manualMode, setManualMode] = useState<ThemeMode | null>(null)
 
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      return
-    }
-
     let cancelled = false
 
     async function loadStoredTheme() {
       try {
-        const stored = await SecureStore.getItemAsync(THEME_STORAGE_KEY)
+        const stored = await appStorage.getItem(THEME_STORAGE_KEY)
         if (!cancelled && (stored === 'light' || stored === 'dark')) {
           setManualMode(stored)
         }
@@ -64,9 +60,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setThemeMode = useCallback((nextMode: ThemeMode) => {
     setManualMode(nextMode)
-    if (Platform.OS !== 'web') {
-      void SecureStore.setItemAsync(THEME_STORAGE_KEY, nextMode).catch(() => undefined)
-    }
+    void appStorage.setItem(THEME_STORAGE_KEY, nextMode).catch(() => undefined)
   }, [])
 
   const toggleTheme = useCallback(() => {

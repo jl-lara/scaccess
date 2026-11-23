@@ -15,11 +15,13 @@ Aplicación móvil para empleados del **Sistema de Control de Acceso (Accesa)**,
 
 Definida en `app.json`, `src/theme/colors.ts`, `src/theme/brandAssets.ts` y `src/context/ThemeContext.tsx`, alineada con la web administrativa de **Accesa**:
 
-- **Tema adaptable (claro y oscuro):** `"userInterfaceStyle": "automatic"` en `app.json`; respeta el esquema del dispositivo y permite alternar manualmente con `ThemeToggleButton` persistiendo la preferencia en `expo-secure-store`.
+- **Tema adaptable (claro y oscuro):** `"userInterfaceStyle": "automatic"` en `app.json`; respeta el esquema del dispositivo y permite alternar manualmente con `ThemeToggleButton` persistiendo la preferencia en `appStorage` (`expo-secure-store` en móvil o `localStorage` protegido en web).
 - **Modo claro (`lightColors`):** fondo `#F7F6FA`, tarjetas `#FFFFFF`, tinta principal `#1E1427`, estados semánticos `#0D9488` / `#BE123C` / `#B45309`.
 - **Modo oscuro (`darkColors`):** fondo `#120C18`, tarjetas `#1E1427`, superficies elevadas `#271B33`, texto `#F7F5FA`, tinta principal `#EDE8F5`, estados `#10B981` / `#F43F5E` / `#F59E0B`.
-- **Los 4 activos PNG (`assets/`):**
-  - `isotipo.png` — ícono de aplicación (`app.json`), cabecera de historial, pantalla de carga y cuenta no soportada en modo claro.
+- **Activos PNG (`assets/`):**
+  - `app-icon.png` (`1024 × 1024 px`) — ícono cuadrado de aplicación en `app.json`.
+  - `adaptive-icon.png` (`1024 × 1024 px`) — ícono adaptativo de Android (`android.adaptiveIcon.foregroundImage` en `app.json`).
+  - `isotipo.png` — cabecera de historial, pantalla de carga y cuenta no soportada en modo claro.
   - `isotipo_oscuro_transparente.png` — splash screen sobre `#1E1427` (`app.json`) y cabeceras en modo oscuro.
   - `logo_accesa_fondo_blanco.png` — wordmark de `LoginScreen` en modo claro.
   - `logo_accesa_fondo_blanco_oscuro_transparente.png` — wordmark de `LoginScreen` en modo oscuro.
@@ -48,7 +50,9 @@ apps/mobile/
 ├── package.json                       # Dependencias y scripts de @scaccess/mobile
 ├── tsconfig.json                      # Configuración estricta de TypeScript
 ├── vitest.config.ts                   # Configuración de Vitest (entorno node)
-├── assets/                            # Los 4 recursos PNG de marca Accesa (claro y oscuro)
+├── assets/                            # Recursos PNG de marca Accesa (íconos 1024x1024 y variantes claro/oscuro)
+│   ├── adaptive-icon.png
+│   ├── app-icon.png
 │   ├── isotipo.png
 │   ├── isotipo_oscuro_transparente.png
 │   ├── logo_accesa_fondo_blanco.png
@@ -66,7 +70,8 @@ apps/mobile/
 │   │   └── ThemeToggleButton.tsx      # Selector manual entre modo claro y oscuro
 │   ├── config/
 │   │   ├── env.ts                     # Validación Zod de variables EXPO_PUBLIC_* y valores por defecto
-│   │   └── supabase.ts                # Cliente Supabase Auth con adaptador expo-secure-store
+│   │   ├── storage.ts                 # Adaptador multiplataforma SecureStore (móvil) / localStorage (web)
+│   │   └── supabase.ts                # Cliente Supabase Auth con adaptador appStorage
 │   ├── context/
 │   │   ├── AuthContext.tsx            # Estado global de sesión (loading, signedOut, unsupported, signedIn)
 │   │   └── ThemeContext.tsx           # Tema claro/oscuro sincronizado con el sistema y persistente
@@ -89,11 +94,15 @@ apps/mobile/
 │       ├── formatters.ts              # Formato de UID RFID y fechas/horas en America/Tijuana
 │       └── validation.ts              # Validación de correo y contraseña en LoginScreen
 └── tests/
+    ├── accessEventsApi.test.ts        # Pruebas de listMyAccessEvents y getMyAccessEventById
     ├── areaLabels.test.ts             # Pruebas de etiquetas y las 6 áreas
+    ├── authApi.test.ts                # Pruebas de getMe (/auth/me)
+    ├── brandAssets.test.ts            # Pruebas de selección de logos claro/oscuro
     ├── env.test.ts                    # Pruebas de variables de entorno
     ├── errorMessages.test.ts          # Pruebas de toSignInMessage, toHistoryError y toDetailError
     ├── formatters.test.ts             # Pruebas de UID y formato horario
     ├── httpClient.test.ts             # Pruebas de apiFetch (sesión, 200, error HTTP, timeout y red)
+    ├── storage.test.ts                # Pruebas de createKeyValueStorage (iOS/Android/web)
     ├── theme.test.ts                  # Pruebas de resolveThemeMode y paletas claro/oscuro
     └── validation.test.ts             # Pruebas de validateLoginForm
 ```

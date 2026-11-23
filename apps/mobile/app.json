@@ -7,7 +7,7 @@
     "userInterfaceStyle": "automatic",
     "scheme": "scaccess",
     "newArchEnabled": true,
-    "icon": "./assets/isotipo.png",
+    "icon": "./assets/app-icon.png",
     "splash": {
       "image": "./assets/isotipo_oscuro_transparente.png",
       "backgroundColor": "#1E1427",
@@ -20,7 +20,7 @@
     "android": {
       "package": "com.scaccess.mobile",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/isotipo.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       }
     },

@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "lib": ["ES2023"],
+    "lib": [
+      "ES2023"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
@@ -18,7 +20,16 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["App.tsx", "index.ts", "src", "tests", "vitest.config.ts"]
+  "include": [
+    "App.tsx",
+    "index.ts",
+    "src",
+    "tests",
+    "vitest.config.ts"
+  ],
+  "extends": "expo/tsconfig.base"
 }

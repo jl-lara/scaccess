@@ -94,7 +94,7 @@ export function LoginScreen() {
     <SafeAreaView style={styles.root} edges={['top', 'bottom', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.topBar}>
           <ThemeToggleButton />

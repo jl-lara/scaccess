@@ -131,7 +131,7 @@ export function AccessHistoryScreen({
     }
   }, [loadPage])
 
-  const isInitialLoading = loading && events.length === 0
+  const isInitialLoading = (loading || refreshing) && events.length === 0
   const showErrorState = error !== null && events.length === 0
 
   useEffect(() => {
@@ -144,7 +144,7 @@ export function AccessHistoryScreen({
   }, [isInitialLoading])
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.root} edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Image
