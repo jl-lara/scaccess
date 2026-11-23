@@ -74,7 +74,7 @@ describe('Accessibility baseline', () => {
       await screen.findByRole('heading', { level: 1, name: 'Empleados' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('navigation', { name: 'Menu administrativo' }),
+      screen.getByRole('navigation', { name: 'Menú administrativo' }),
     ).toBeInTheDocument()
     expect(await screen.findByText(/API conectada/)).toBeInTheDocument()
   })
@@ -95,7 +95,7 @@ describe('Accessibility baseline', () => {
     await waitFor(() => {
       expect(screen.getByText(/API conectada/)).toBeInTheDocument()
     })
-    expect(screen.getByRole('link', { name: 'Bitacora de accesos' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Bitácora de accesos' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Cuentas y roles' })).not.toBeInTheDocument()
   })
 
@@ -155,7 +155,7 @@ describe('Accessibility baseline', () => {
     expect(hideButton).toHaveAttribute('aria-expanded', 'true')
     expect(hideButton).toHaveAttribute('aria-controls', 'app-sidebar')
     expect(
-      screen.getByRole('navigation', { name: 'Menu administrativo' }),
+      screen.getByRole('navigation', { name: 'Menú administrativo' }),
     ).toBeInTheDocument()
 
     fireEvent.click(hideButton)
@@ -163,7 +163,7 @@ describe('Accessibility baseline', () => {
     expect(document.querySelector('.app-shell')).toHaveClass('is-sidebar-collapsed')
     expect(hideButton).toHaveAttribute('aria-expanded', 'false')
     expect(
-      screen.queryByRole('navigation', { name: 'Menu administrativo' }),
+      screen.queryByRole('navigation', { name: 'Menú administrativo' }),
     ).not.toBeInTheDocument()
     expect(localStorage.getItem('scaccess-sidebar-collapsed')).toBe('true')
 
@@ -175,7 +175,7 @@ describe('Accessibility baseline', () => {
     expect(document.querySelector('.app-shell')).not.toHaveClass('is-sidebar-collapsed')
     expect(showButton).toHaveAttribute('aria-expanded', 'true')
     expect(
-      screen.getByRole('navigation', { name: 'Menu administrativo' }),
+      screen.getByRole('navigation', { name: 'Menú administrativo' }),
     ).toBeInTheDocument()
     expect(localStorage.getItem('scaccess-sidebar-collapsed')).toBe('false')
   })

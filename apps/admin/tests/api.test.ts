@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { api, ApiClientError, apiRequest, setAccessTokenGetter } from '../src/lib/api'
+import {
+  api,
+  ApiClientError,
+  apiRequest,
+  setAccessTokenGetter,
+  setUnauthorizedHandler,
+} from '../src/lib/api'
 
 const API_ORIGIN = 'https://scaccess-api.onrender.com/api/v1'
 
@@ -280,9 +286,95 @@ describe('api client contracts', () => {
       name: 'ApiClientError',
       statusCode: 403,
       code: 'FORBIDDEN',
-      message: 'No tienes permisos para realizar esta accion.',
+      message: 'No tienes permisos para realizar esta acción.',
       details: { requiredRole: 'admin' },
     })
+  })
+
+  it('translates known 409 conflict messages into specific Spanish messages (H8)', async () => {
+    const conflicts: Array<{ raw: string; expected: string }> = [
+      {
+        raw: 'Employee code already exists',
+        expected: 'Ya existe un empleado registrado con ese código.',
+      },
+      {
+        raw: 'Employee email already exists',
+        expected: 'Ya existe un empleado registrado con ese correo electrónico.',
+      },
+      {
+        raw: 'Card UID already registered',
+        expected: 'Ya existe una tarjeta RFID registrada con ese UID.',
+      },
+      {
+        raw: 'Area code already exists',
+        expected: 'Ya existe un área física registrada con ese código.',
+      },
+    ]
+
+    for (const entry of conflicts) {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: 'CONFLICT',
+              message: entry.raw,
+            },
+          },
+          409,
+        ),
+      )
+
+      await expect(api.getMe()).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'CONFLICT',
+        message: entry.expected,
+      })
+    }
+  })
+
+  it('invokes unauthorized handler on 401 responses but not on 403', async () => {
+    const onUnauthorized = vi.fn()
+    setUnauthorizedHandler(onUnauthorized)
+
+    try {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: 'UNAUTHORIZED',
+              message: 'Expired token',
+            },
+          },
+          401,
+        ),
+      )
+
+      await expect(api.getMe()).rejects.toMatchObject({
+        statusCode: 401,
+        code: 'UNAUTHORIZED',
+      })
+      expect(onUnauthorized).toHaveBeenCalledTimes(1)
+
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Insufficient role',
+            },
+          },
+          403,
+        ),
+      )
+
+      await expect(api.getMe()).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'FORBIDDEN',
+      })
+      expect(onUnauthorized).toHaveBeenCalledTimes(1)
+    } finally {
+      setUnauthorizedHandler(null)
+    }
   })
 
   it('never renders an HTML proxy error page in the interface', async () => {

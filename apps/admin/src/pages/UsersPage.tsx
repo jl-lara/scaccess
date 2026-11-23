@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Pencil, Plus, Search, ShieldAlert } from 'lucide-react'
+import { Pencil, Plus, ShieldAlert } from 'lucide-react'
 import type {
   AccountStatus,
   EmployeeDto,
@@ -14,8 +14,8 @@ import { StatusBadge } from '../components/ui/StatusBadge'
 import { COLD_START_HINT, TableMessage } from '../components/ui/TableMessage'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
-import { ACCOUNT_STATUS_LABELS, ROLE_LABELS, formatDateTime } from '../lib/formatters'
-import { getErrorMessage, isValidUuid } from '../lib/validation'
+import { ACCOUNT_STATUS_LABELS, ROLE_LABELS, formatCount, formatDateTime } from '../lib/formatters'
+import { getErrorMessage, isValidEmail, isValidUuid } from '../lib/validation'
 
 const PAGE_SIZE = 20
 const ACCOUNT_STATUSES: AccountStatus[] = ['active', 'disabled']
@@ -26,8 +26,6 @@ const EMPTY_PAGINATION: PaginationMeta = {
   total: 0,
   totalPages: 0,
 }
-
-const COUNT_FORMATTER = new Intl.NumberFormat('es-MX')
 
 type UserModalState = { mode: 'create' } | { mode: 'edit'; user: UserAccountDto } | null
 
@@ -72,7 +70,7 @@ export function UsersPage() {
       setError(
         getErrorMessage(
           err,
-          'No se pudo cargar la administracion de cuentas. Revisa tu conexion y vuelve a intentarlo.',
+          'No se pudo cargar la administración de cuentas. Revisa tu conexión y vuelve a intentarlo.',
         ),
       )
     } finally {
@@ -86,6 +84,19 @@ export function UsersPage() {
     }
     void loadUsers()
   }, [isAdmin, loadUsers])
+
+  useEffect(() => {
+    const trimmed = searchInput.trim()
+    if (trimmed === appliedSearch) {
+      return
+    }
+    const timer = setTimeout(() => {
+      setPage(1)
+      setAppliedSearch(trimmed)
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [searchInput, appliedSearch])
 
   const employeeById = useMemo(
     () => new Map(employees.map((employee) => [employee.id, employee])),
@@ -125,7 +136,7 @@ export function UsersPage() {
           <div>
             <h1 className="page-title">Cuentas y roles</h1>
             <p className="page-description">
-              Administracion de cuentas de acceso y roles.
+              Administración de cuentas de acceso y roles.
             </p>
           </div>
         </div>
@@ -133,8 +144,8 @@ export function UsersPage() {
           <ShieldAlert size={28} aria-hidden="true" />
           <h2 className="surface-card-title">Permisos insuficientes</h2>
           <p>
-            Solo una cuenta con rol Administrador puede gestionar cuentas, roles y vinculos con
-            empleados. Tu sesion no tiene ese privilegio.
+            Solo una cuenta con rol Administrador puede gestionar cuentas, roles y vínculos con
+            empleados. Tu sesión no tiene ese privilegio.
           </p>
         </section>
       </div>
@@ -147,7 +158,7 @@ export function UsersPage() {
         <div>
           <h1 className="page-title">Cuentas y roles</h1>
           <p className="page-description">
-            Administracion de cuentas de acceso y roles.
+            Administración de cuentas de acceso y roles.
           </p>
         </div>
         <button
@@ -201,6 +212,7 @@ export function UsersPage() {
           role="search"
           aria-label="Filtros de cuentas"
           autoComplete="off"
+          noValidate
           onSubmit={handleFilterSubmit}
         >
           <div className="filter-group">
@@ -215,7 +227,7 @@ export function UsersPage() {
                 type="search"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Correo, nombre o codigo de empleado…"
+                placeholder="Correo, nombre o código de empleado…"
                 autoComplete="off"
                 spellCheck={false}
               />
@@ -242,10 +254,6 @@ export function UsersPage() {
                 ))}
               </select>
             </div>
-            <button type="submit" className="btn btn-primary btn-sm">
-              <Search size={14} aria-hidden="true" />
-              Aplicar filtros
-            </button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
               Limpiar
             </button>
@@ -253,19 +261,19 @@ export function UsersPage() {
           <span className="table-meta" role="status" aria-live="polite">
             {loading
               ? 'Actualizando…'
-              : `${COUNT_FORMATTER.format(pagination.total)} cuentas en total`}
+              : `${formatCount(pagination.total, 'cuenta', 'cuentas')} en total`}
           </span>
         </form>
 
         <div className="table-wrapper">
-          <table className="data-table" aria-busy={loading}>
+          <table className="data-table responsive-table" aria-busy={loading}>
             <thead>
               <tr>
                 <th scope="col">Cuenta</th>
                 <th scope="col">Empleado vinculado</th>
                 <th scope="col">Roles</th>
                 <th scope="col">Estado</th>
-                <th scope="col">Ultimo acceso</th>
+                <th scope="col">Último acceso</th>
                 <th scope="col" className="align-right">
                   Acciones
                 </th>
@@ -315,7 +323,7 @@ export function UsersPage() {
 
                   return (
                     <tr key={user.id}>
-                      <td>
+                      <td data-label="Cuenta">
                         <div className="cell-stack">
                           <span className="cell-primary">{user.email}</span>
                           <span className="cell-secondary mono-text" translate="no">
@@ -323,7 +331,7 @@ export function UsersPage() {
                           </span>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Empleado vinculado">
                         {employee ? (
                           <div className="cell-stack">
                             <span>
@@ -337,7 +345,7 @@ export function UsersPage() {
                           <span className="cell-secondary">Sin empleado vinculado</span>
                         )}
                       </td>
-                      <td>
+                      <td data-label="Roles">
                         <div className="badge-list">
                           {user.roles.length === 0 ? (
                             <span className="cell-secondary">Sin roles</span>
@@ -350,13 +358,15 @@ export function UsersPage() {
                           )}
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Estado">
                         <StatusBadge variant={user.status === 'active' ? 'success' : 'neutral'}>
                           {ACCOUNT_STATUS_LABELS[user.status]}
                         </StatusBadge>
                       </td>
-                      <td className="cell-secondary">{formatDateTime(user.lastLoginAt)}</td>
-                      <td>
+                      <td data-label="Último acceso" className="cell-secondary">
+                        {formatDateTime(user.lastLoginAt)}
+                      </td>
+                      <td data-label="Acciones">
                         <div className="row-actions">
                           <button
                             type="button"
@@ -454,6 +464,10 @@ function UserFormModal({
         setFormError('El correo de la cuenta es obligatorio.')
         return
       }
+      if (!isValidEmail(email)) {
+        setFormError('Ingresa un correo electrónico válido.')
+        return
+      }
     }
 
     if (roleCodes.length === 0) {
@@ -493,13 +507,13 @@ function UserFormModal({
       title={user ? 'Editar cuenta' : 'Nueva cuenta'}
       description={
         user
-          ? 'Actualiza el estado, el empleado vinculado o los roles. El correo y la identidad de Supabase Auth no se modifican desde aqui.'
+          ? 'Actualiza el estado, el empleado vinculado o los roles. El correo y la identidad de Supabase Auth no se modifican desde aquí.'
           : 'La cuenta debe existir primero en Supabase Auth. Captura su UUID para vincularla con esta consola.'
       }
       size="wide"
       onClose={onClose}
     >
-      <form autoComplete="off" onSubmit={(event) => void handleSubmit(event)}>
+      <form autoComplete="off" noValidate onSubmit={(event) => void handleSubmit(event)}>
         <div className="modal-body">
           {formError ? <NoticeBanner variant="error">{formError}</NoticeBanner> : null}
 
@@ -551,7 +565,7 @@ function UserFormModal({
                 </div>
                 <div className="form-field">
                   <label className="form-label" htmlFor="user-form-email">
-                    Correo electronico
+                    Correo electrónico
                   </label>
                   <input
                     id="user-form-email"
@@ -590,7 +604,7 @@ function UserFormModal({
                 ))}
               </select>
               <span className="form-hint" id="user-form-employee-hint">
-                El vinculo permite relacionar la cuenta con su historial personal.
+                El vínculo permite relacionar la cuenta con su historial personal.
               </span>
             </div>
 
@@ -653,7 +667,7 @@ function UserFormModal({
                 </div>
               )}
               <span className="form-hint" id="user-form-roles-hint">
-                Administrador y Operador pueden modificar el catalogo; Auditor solo consulta. El
+                Administrador y Operador pueden modificar el catálogo; Auditor solo consulta. El
                 servidor valida el rol en cada solicitud.
               </span>
             </div>

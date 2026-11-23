@@ -8,13 +8,20 @@ import {
   Search,
   Shuffle,
 } from 'lucide-react'
-import type { AccessEventDto, AreaDto, EmployeeDto } from '@scaccess/shared'
+import type {
+  AccessEventDto,
+  AccessPermissionDto,
+  AreaDto,
+  CredentialDto,
+  EmployeeDto,
+  EmployeeStatus,
+} from '@scaccess/shared'
 import { api } from '../../lib/api'
-import { formatDateTimeWithSeconds } from '../../lib/formatters'
+import { EMPLOYEE_STATUS_LABELS, formatDateTimeWithSeconds } from '../../lib/formatters'
 
 const EXTERIOR_ZONE_ID = 'exterior'
 const EXTERIOR_ZONE_LABEL = 'Exterior / Salida registrada'
-const EXTERIOR_STATE_LABEL = 'Fuera de instalaciones / En transito'
+const EXTERIOR_STATE_LABEL = 'Fuera de instalaciones / En tránsito'
 
 const KNOWN_AREA_ORDER: readonly string[] = [
   'MAIN_ENTRANCE',
@@ -32,16 +39,16 @@ interface AreaProfile {
 
 const DEFAULT_AREA_PROFILE: AreaProfile = {
   capacity: 8,
-  security: 'Seguridad estandar',
+  security: 'Seguridad estándar',
 }
 
 const AREA_PROFILES: Record<string, AreaProfile> = {
   MAIN_ENTRANCE: { capacity: 12, security: 'Control perimetral' },
   LAB_ELECTRONICS: { capacity: 6, security: 'Acceso restringido' },
-  SERVER_ROOM: { capacity: 3, security: 'Nivel critico' },
+  SERVER_ROOM: { capacity: 3, security: 'Nivel crítico' },
   ADMIN_OFFICES: { capacity: 10, security: 'Acceso privado' },
   WAREHOUSE_RFID: { capacity: 8, security: 'Zona operativa' },
-  QA_TEST_AREA: { capacity: 5, security: 'Supervision tecnica' },
+  QA_TEST_AREA: { capacity: 5, security: 'Supervisión técnica' },
 }
 
 const TIME_FORMATTER = new Intl.DateTimeFormat('es-MX', {
@@ -79,6 +86,14 @@ interface EmployeeView {
   code: string
   initials: string
   department: string | null
+  status: EmployeeStatus | null
+}
+
+type FeedbackTone = 'info' | 'success' | 'warning' | 'error'
+
+interface SimulatorFeedback {
+  tone: FeedbackTone
+  message: string
 }
 
 interface PersonEntry {
@@ -193,6 +208,7 @@ function buildEmployeeViews(
       code: employee.employeeCode,
       initials: makeInitials(employee.firstName, employee.lastName),
       department: employee.department,
+      status: employee.status,
     })
   }
 
@@ -207,6 +223,7 @@ function buildEmployeeViews(
       code: `EMP-${suffix}`,
       initials: 'EM',
       department: null,
+      status: null,
     })
   }
 
@@ -383,7 +400,7 @@ function FloorZone({
           event.stopPropagation()
           onSelectZone(area.id)
         }}
-        aria-label={`Ver actividad de la zona ${area.name}, codigo ${area.code}`}
+        aria-label={`Ver actividad de la zona ${area.name}, código ${area.code}`}
       >
         <span className="croquis__zone-name">
           {area.name} · <span className="croquis__zone-code">{area.code}</span>
@@ -397,7 +414,10 @@ function FloorZone({
         <span>
           {occupancy} {occupancy === 1 ? 'persona' : 'personas'} en zona
         </span>
-        <span>Capacidad {profile.capacity}</span>
+        <span>
+          Capacidad {profile.capacity}
+          {atCapacity ? ' · Aforo completo' : ''}
+        </span>
       </div>
       <div className="croquis__capacity-track" aria-hidden="true">
         <div
@@ -665,6 +685,11 @@ export function AreasFloorPlan({
   const showSimulator = mode !== 'floorplan'
   const [serverEvents, setServerEvents] = useState<AccessEventDto[]>([])
   const [employees, setEmployees] = useState<EmployeeDto[]>([])
+  const [permissions, setPermissions] = useState<AccessPermissionDto[]>([])
+  const [credentials, setCredentials] = useState<CredentialDto[]>([])
+  const [hasPermissionsCatalog, setHasPermissionsCatalog] = useState(false)
+  const [hasCredentialsCatalog, setHasCredentialsCatalog] = useState(false)
+  const [includeInactiveEmployees, setIncludeInactiveEmployees] = useState(false)
   const [loading, setLoading] = useState(true)
   const [reloadKey, setReloadKey] = useState(0)
   const [simulatedMovements, setSimulatedMovements] = useState<MovementLogEntry[]>([])
@@ -675,7 +700,7 @@ export function AreasFloorPlan({
   const [movementEmployeeId, setMovementEmployeeId] = useState('')
   const [movementAreaId, setMovementAreaId] = useState('')
   const [roundSeed, setRoundSeed] = useState(0)
-  const [feedback, setFeedback] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<SimulatorFeedback | null>(null)
   const simulationCounter = useRef(0)
 
   useEffect(() => {
@@ -693,20 +718,51 @@ export function AreasFloorPlan({
           canViewEmployees && typeof api.listEmployees === 'function'
             ? Promise.resolve(api.listEmployees({ page: 1, pageSize: 100 })).catch(() => null)
             : Promise.resolve(null)
+        const permissionsPromise =
+          showSimulator && canViewEmployees && typeof api.listAccessPermissions === 'function'
+            ? Promise.resolve(
+                api.listAccessPermissions({ activeOnly: true, page: 1, pageSize: 100 }),
+              ).catch(() => null)
+            : Promise.resolve(null)
+        const credentialsPromise =
+          showSimulator && canViewEmployees && typeof api.listCredentials === 'function'
+            ? Promise.resolve(api.listCredentials({ page: 1, pageSize: 100 })).catch(() => null)
+            : Promise.resolve(null)
 
-        const [eventsResponse, employeesResponse] = await Promise.all([
-          eventsPromise,
-          employeesPromise,
-        ])
+        const [eventsResponse, employeesResponse, permissionsResponse, credentialsResponse] =
+          await Promise.all([
+            eventsPromise,
+            employeesPromise,
+            permissionsPromise,
+            credentialsPromise,
+          ])
 
         if (!active) return
 
         setServerEvents(Array.isArray(eventsResponse?.data) ? eventsResponse.data : [])
         setEmployees(Array.isArray(employeesResponse?.data) ? employeesResponse.data : [])
+        if (Array.isArray(permissionsResponse?.data)) {
+          setPermissions(permissionsResponse.data)
+          setHasPermissionsCatalog(true)
+        } else {
+          setPermissions([])
+          setHasPermissionsCatalog(false)
+        }
+        if (Array.isArray(credentialsResponse?.data)) {
+          setCredentials(credentialsResponse.data)
+          setHasCredentialsCatalog(true)
+        } else {
+          setCredentials([])
+          setHasCredentialsCatalog(false)
+        }
       } catch {
         if (!active) return
         setServerEvents([])
         setEmployees([])
+        setPermissions([])
+        setCredentials([])
+        setHasPermissionsCatalog(false)
+        setHasCredentialsCatalog(false)
       } finally {
         if (active) {
           setLoading(false)
@@ -719,7 +775,7 @@ export function AreasFloorPlan({
     return () => {
       active = false
     }
-  }, [reloadKey, canViewEmployees])
+  }, [reloadKey, canViewEmployees, showSimulator])
 
   const areaById = useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas])
 
@@ -827,14 +883,95 @@ export function AreasFloorPlan({
     return people
   }, [effectivePresence, employeeViews])
 
-  const employeeOptions = useMemo(
-    () => [...employeeViews.values()].toSorted((left, right) => left.name.localeCompare(right.name, 'es')),
-    [employeeViews],
-  )
+  const employeeOptions = useMemo(() => {
+    const allViews = [...employeeViews.values()]
+    const filtered = includeInactiveEmployees
+      ? allViews
+      : allViews.filter((emp) => emp.status === null || emp.status === 'active')
+    return filtered.toSorted((left, right) => left.name.localeCompare(right.name, 'es'))
+  }, [employeeViews, includeInactiveEmployees])
 
-  const effectiveEmployeeId = employeeViews.has(movementEmployeeId)
+  const effectiveEmployeeId = employeeOptions.some((emp) => emp.id === movementEmployeeId)
     ? movementEmployeeId
     : employeeOptions[0]?.id ?? ''
+
+  const activeCredentialByEmployee = useMemo(() => {
+    const map = new Map<string, CredentialDto>()
+    for (const credential of credentials) {
+      if (credential.status === 'active' && !map.has(credential.employeeId)) {
+        map.set(credential.employeeId, credential)
+      }
+    }
+    return map
+  }, [credentials])
+
+  function evaluateEntryRules(
+    employee: EmployeeView,
+    destination: AreaDto,
+    occupancyCount: number,
+  ): SimulatorFeedback | null {
+    if (!destination.isActive) {
+      return {
+        tone: 'error',
+        message: `Acceso denegado: el área ${destination.name} está inactiva.`,
+      }
+    }
+
+    if (employee.status && employee.status !== 'active') {
+      return {
+        tone: 'error',
+        message: `Acceso denegado: ${employee.name} tiene estado ${EMPLOYEE_STATUS_LABELS[employee.status].toLowerCase()}.`,
+      }
+    }
+
+    if (hasCredentialsCatalog && !activeCredentialByEmployee.has(employee.id)) {
+      return {
+        tone: 'error',
+        message: `Acceso denegado: ${employee.name} no cuenta con una tarjeta RFID activa.`,
+      }
+    }
+
+    if (hasPermissionsCatalog) {
+      const nowMs = Date.now()
+      const matching = permissions.filter(
+        (permission) =>
+          permission.employeeId === employee.id &&
+          permission.areaId === destination.id &&
+          permission.revokedAt === null,
+      )
+      if (matching.length === 0) {
+        return {
+          tone: 'error',
+          message: `Acceso denegado: ${employee.name} no tiene permiso asignado para ${destination.name}.`,
+        }
+      }
+
+      const validNow = matching.some((permission) => {
+        const fromMs = permission.validFrom ? new Date(permission.validFrom).getTime() : null
+        const toMs = permission.validTo ? new Date(permission.validTo).getTime() : null
+        if (fromMs !== null && Number.isFinite(fromMs) && fromMs > nowMs) return false
+        if (toMs !== null && Number.isFinite(toMs) && toMs <= nowMs) return false
+        return true
+      })
+
+      if (!validNow) {
+        return {
+          tone: 'error',
+          message: `Acceso denegado: el permiso de ${employee.name} en ${destination.name} está vencido o aún no inicia su vigencia.`,
+        }
+      }
+    }
+
+    const capacity = getAreaProfile(destination.code).capacity
+    if (occupancyCount >= capacity) {
+      return {
+        tone: 'warning',
+        message: `Capacidad máxima alcanzada en ${destination.name} (${occupancyCount}/${capacity} personas). Registra una salida antes de permitir otro ingreso.`,
+      }
+    }
+
+    return null
+  }
 
   const selectedDestinationId =
     selectedZoneId && selectedZoneId !== EXTERIOR_ZONE_ID
@@ -883,10 +1020,10 @@ export function AreasFloorPlan({
 
   const searchStatus = searchActive
     ? searchMatches.labels.length > 0
-      ? `Ubicacion: ${searchMatches.labels.slice(0, 3).join(' · ')}${
+      ? `Ubicación: ${searchMatches.labels.slice(0, 3).join(' · ')}${
           searchMatches.labels.length > 3 ? ` (+${searchMatches.labels.length - 3})` : ''
         }`
-      : 'Sin empleados que coincidan con la busqueda.'
+      : 'Sin empleados que coincidan con la búsqueda.'
     : null
 
   const exteriorSelected = selectedZoneId === EXTERIOR_ZONE_ID
@@ -936,12 +1073,17 @@ export function AreasFloorPlan({
 
     const employee = employeeViews.get(effectiveEmployeeId)
     if (!employee) {
-      setFeedback('Selecciona un empleado para simular el movimiento.')
+      setFeedback({
+        tone: 'warning',
+        message: 'Selecciona un empleado para simular el movimiento.',
+      })
       return
     }
 
     const current = effectivePresence.get(employee.id)
-    const cardUid = current?.cardUid ?? cardUidByEmployee.get(employee.id) ?? 'SIMULADO'
+    const activeCredential = activeCredentialByEmployee.get(employee.id)
+    const cardUid =
+      activeCredential?.cardUid ?? current?.cardUid ?? cardUidByEmployee.get(employee.id) ?? 'SIMULADO'
 
     if (movement === 'exit') {
       const exitFromAreaId = current?.areaId ?? null
@@ -958,26 +1100,39 @@ export function AreasFloorPlan({
       setSimulatedMovements((currentMovements) => [...currentMovements, exitMovement])
       setSelectedZoneId(exitFromAreaId ?? EXTERIOR_ZONE_ID)
       setSelectedEmployeeId(employee.id)
-      setFeedback(
-        exitFromAreaId
-          ? `Salida simulada: ${employee.name} salio de ${
-              areaById.get(exitFromAreaId)?.name ?? 'el area'
+      setFeedback({
+        tone: 'success',
+        message: exitFromAreaId
+          ? `Salida simulada: ${employee.name} salió de ${
+              areaById.get(exitFromAreaId)?.name ?? 'el área'
             }.`
-          : `Salida simulada: ${employee.name} quedo en ${EXTERIOR_STATE_LABEL}.`,
-      )
+          : `Salida simulada: ${employee.name} quedó en ${EXTERIOR_STATE_LABEL}.`,
+      })
       return
     }
 
     const destination = areaById.get(effectiveDestinationId)
     if (!destination) {
-      setFeedback('Selecciona un area de destino para simular la entrada.')
+      setFeedback({
+        tone: 'warning',
+        message: 'Selecciona un área de destino para simular la entrada.',
+      })
       return
     }
 
     if (current?.areaId === destination.id) {
-      setFeedback(
-        `${employee.name} ya se encuentra en ${destination.name}. Registra una salida o elige otra area.`,
-      )
+      setFeedback({
+        tone: 'warning',
+        message: `${employee.name} ya se encuentra en ${destination.name}. Registra una salida o elige otra área.`,
+      })
+      return
+    }
+
+    const currentOccupancy = peopleByArea.get(destination.id)?.length ?? 0
+    const denial = evaluateEntryRules(employee, destination, currentOccupancy)
+    if (denial) {
+      setSelectedZoneId(destination.id)
+      setFeedback(denial)
       return
     }
 
@@ -994,21 +1149,42 @@ export function AreasFloorPlan({
     setSimulatedMovements((currentMovements) => [...currentMovements, entryMovement])
     setSelectedZoneId(destination.id)
     setSelectedEmployeeId(employee.id)
-    setFeedback(`Entrada simulada: ${employee.name} ingreso a ${destination.name}.`)
+    setFeedback({
+      tone: 'success',
+      message: `Entrada simulada: ${employee.name} ingresó a ${destination.name}.`,
+    })
   }
 
   function handleSimulatedRound() {
     if (employeeOptions.length === 0 || destinationAreas.length === 0) {
-      setFeedback('No hay empleados o areas disponibles para simular una ronda.')
+      setFeedback({
+        tone: 'warning',
+        message: 'No hay empleados o áreas disponibles para simular una ronda.',
+      })
       return
     }
 
-    const total = Math.min(3, employeeOptions.length)
+    const activeEligibleEmployees = employeeOptions.filter(
+      (employee) => employee.status === null || employee.status === 'active',
+    )
+    if (activeEligibleEmployees.length === 0) {
+      setFeedback({
+        tone: 'warning',
+        message: 'No hay empleados activos disponibles para simular una ronda.',
+      })
+      return
+    }
+
+    const total = Math.min(3, activeEligibleEmployees.length)
     const baseTime = Date.now()
     const roundMovements: MovementLogEntry[] = []
+    const simulatedAreaCounts = new Map<string, number>()
+    for (const area of destinationAreas) {
+      simulatedAreaCounts.set(area.id, peopleByArea.get(area.id)?.length ?? 0)
+    }
 
     for (let step = 0; step < total; step += 1) {
-      const employee = employeeOptions[(roundSeed + step) % employeeOptions.length]
+      const employee = activeEligibleEmployees[(roundSeed + step) % activeEligibleEmployees.length]
       if (!employee) continue
 
       const current = effectivePresence.get(employee.id)
@@ -1022,25 +1198,50 @@ export function AreasFloorPlan({
           occurredAt: new Date(baseTime + step * 1000).toISOString(),
           simulated: true,
         })
+        simulatedAreaCounts.set(
+          current.areaId,
+          Math.max(0, (simulatedAreaCounts.get(current.areaId) ?? 1) - 1),
+        )
         continue
       }
 
-      const destination = destinationAreas[(roundSeed + step) % destinationAreas.length]
-      if (!destination) continue
+      let chosenDestination: AreaDto | null = null
+      for (let offset = 0; offset < destinationAreas.length; offset += 1) {
+        const candidate = destinationAreas[(roundSeed + step + offset) % destinationAreas.length]
+        if (!candidate) continue
+        const occupancy = simulatedAreaCounts.get(candidate.id) ?? 0
+        if (evaluateEntryRules(employee, candidate, occupancy) === null) {
+          chosenDestination = candidate
+          break
+        }
+      }
+
+      if (!chosenDestination) continue
 
       roundMovements.push({
         id: nextSimulationId('sim-round-entry'),
         employeeId: employee.id,
-        areaId: destination.id,
-        cardUid: cardUidByEmployee.get(employee.id) ?? 'SIMULADO',
+        areaId: chosenDestination.id,
+        cardUid:
+          activeCredentialByEmployee.get(employee.id)?.cardUid ??
+          cardUidByEmployee.get(employee.id) ??
+          'SIMULADO',
         movement: 'entry',
         occurredAt: new Date(baseTime + step * 1000).toISOString(),
         simulated: true,
       })
+      simulatedAreaCounts.set(
+        chosenDestination.id,
+        (simulatedAreaCounts.get(chosenDestination.id) ?? 0) + 1,
+      )
     }
 
     if (roundMovements.length === 0) {
-      setFeedback('La ronda no genero movimientos. Intenta de nuevo.')
+      setFeedback({
+        tone: 'warning',
+        message:
+          'Ningún empleado cumplió con tarjeta activa, permiso vigente y aforo disponible para esta ronda.',
+      })
       return
     }
 
@@ -1048,18 +1249,22 @@ export function AreasFloorPlan({
     setRoundSeed((currentSeed) => currentSeed + 1)
     setSelectedZoneId(null)
     setSelectedEmployeeId(null)
-    setFeedback(
-      `Ronda simulada: ${roundMovements.length} ${
+    setFeedback({
+      tone: 'success',
+      message: `Ronda simulada: ${roundMovements.length} ${
         roundMovements.length === 1 ? 'movimiento aplicado' : 'movimientos aplicados'
       }.`,
-    )
+    })
   }
 
   function handleReset() {
     setSimulatedMovements([])
     setSelectedZoneId(null)
     setSelectedEmployeeId(null)
-    setFeedback('Croquis restablecido con los eventos y ubicaciones del servidor.')
+    setFeedback({
+      tone: 'info',
+      message: 'Croquis restablecido con los eventos y ubicaciones del servidor.',
+    })
   }
 
   const gridRowCount = Math.max(1, Math.ceil(orderedAreas.length / 2))
@@ -1071,11 +1276,12 @@ export function AreasFloorPlan({
       <header className="croquis__header">
         <div>
           <h2 className="croquis__title" id="areas-floor-plan-title">
-            Croquis de las areas y ubicacion en tiempo real (Simulacion)
+            Croquis de las áreas y ubicación en tiempo real (Simulación)
           </h2>
           <p className="croquis__subtitle">
-            Las entradas concedidas ubican a cada empleado en su zona. Una salida explicita o una
-            segunda lectura consecutiva en la misma area lo mueve a {EXTERIOR_STATE_LABEL}.
+            Las entradas concedidas ubican a cada empleado en su zona respetando estado, tarjeta
+            RFID activa, permiso vigente y aforo. Una salida explícita o una segunda lectura
+            consecutiva en la misma área lo mueve a {EXTERIOR_STATE_LABEL}.
           </p>
         </div>
 
@@ -1087,7 +1293,7 @@ export function AreasFloorPlan({
           {showSimulator ? (
             <span className="croquis__sim-count">
               {simulatedMovements.length}{' '}
-              {simulatedMovements.length === 1 ? 'simulacion activa' : 'simulaciones activas'}
+              {simulatedMovements.length === 1 ? 'simulación activa' : 'simulaciones activas'}
             </span>
           ) : (
             <button
@@ -1121,6 +1327,9 @@ export function AreasFloorPlan({
                 {employeeOptions.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.name} ({employee.code})
+                    {employee.status && employee.status !== 'active'
+                      ? ` — ${EMPLOYEE_STATUS_LABELS[employee.status]}`
+                      : ''}
                   </option>
                 ))}
               </select>
@@ -1134,13 +1343,13 @@ export function AreasFloorPlan({
                 value={movement}
                 onChange={(event) => setMovement(event.target.value as MovementKind)}
               >
-                <option value="entry">Entrada al area</option>
-                <option value="exit">Salida del area</option>
+                <option value="entry">Entrada al área</option>
+                <option value="exit">Salida del área</option>
               </select>
             </div>
 
             <div className="croquis__field">
-              <label htmlFor="floor-plan-destination">Area de destino</label>
+              <label htmlFor="floor-plan-destination">Área de destino</label>
               <select
                 id="floor-plan-destination"
                 className="select-control"
@@ -1149,7 +1358,7 @@ export function AreasFloorPlan({
                 disabled={movement === 'exit' || destinationAreas.length === 0}
               >
                 {destinationAreas.length === 0 ? (
-                  <option value="">Sin areas disponibles</option>
+                  <option value="">Sin áreas disponibles</option>
                 ) : null}
                 {destinationAreas.map((area) => (
                   <option key={area.id} value={area.id}>
@@ -1197,13 +1406,26 @@ export function AreasFloorPlan({
               <RefreshCw size={13} aria-hidden="true" />
               Actualizar eventos
             </button>
+            <label className="form-row-checkbox" htmlFor="floor-plan-include-inactive">
+              <input
+                id="floor-plan-include-inactive"
+                type="checkbox"
+                checked={includeInactiveEmployees}
+                onChange={(event) => setIncludeInactiveEmployees(event.target.checked)}
+              />
+              Incluir inactivos/suspendidos (para probar rechazos)
+            </label>
           </div>
         </div>
       ) : null}
 
       {showSimulator && feedback ? (
-        <p className="croquis__feedback" role="status" aria-live="polite">
-          {feedback}
+        <p
+          className={`croquis__feedback croquis__feedback--${feedback.tone}`}
+          role={feedback.tone === 'error' || feedback.tone === 'warning' ? 'alert' : 'status'}
+          aria-live={feedback.tone === 'error' || feedback.tone === 'warning' ? 'assertive' : 'polite'}
+        >
+          {feedback.message}
         </p>
       ) : null}
 
@@ -1219,7 +1441,7 @@ export function AreasFloorPlan({
             className="input-control croquis__search-input"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Nombre, codigo EMP-... o tarjeta"
+            placeholder="Nombre, código EMP-... o tarjeta"
             autoComplete="off"
             spellCheck={false}
           />
@@ -1247,15 +1469,15 @@ export function AreasFloorPlan({
       <div className="croquis__layout">
         <div className="croquis__plan">
           <div className="croquis__plan-caption">
-            <span>Plano tactico · edificio principal</span>
+            <span>Plano táctico · edificio principal</span>
             <span>
-              {totalInside} en areas · {exteriorPeople.length} fuera
+              {totalInside} en áreas · {exteriorPeople.length} fuera
             </span>
           </div>
 
           {orderedAreas.length === 0 ? (
             <p className="croquis__empty-plan">
-              Sin areas en el croquis. Crea o activa areas para dibujar el plano.
+              Sin áreas en el croquis. Crea o activa áreas para dibujar el plano.
             </p>
           ) : (
             <div className="croquis__grid">
@@ -1495,6 +1717,24 @@ const FLOOR_PLAN_STYLES = `
     background: var(--fp-accent-soft);
     color: var(--fp-text);
     font-size: 0.8rem;
+  }
+
+  .croquis__feedback--success {
+    border-color: var(--status-granted-border, rgba(13, 148, 136, 0.35));
+    background: var(--status-granted-soft, rgba(13, 148, 136, 0.12));
+    color: var(--status-granted-text, var(--fp-text));
+  }
+
+  .croquis__feedback--warning {
+    border-color: var(--status-warning-border, rgba(180, 83, 9, 0.35));
+    background: var(--status-warning-soft, rgba(180, 83, 9, 0.12));
+    color: var(--status-warning-text, var(--fp-text));
+  }
+
+  .croquis__feedback--error {
+    border-color: var(--status-denied-border, rgba(190, 18, 60, 0.35));
+    background: var(--status-denied-soft, rgba(190, 18, 60, 0.12));
+    color: var(--status-denied-text, var(--fp-text));
   }
 
   .croquis__search {

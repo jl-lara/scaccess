@@ -23,9 +23,9 @@ export function Pagination({
   return (
     <div className="pagination-bar">
       <span className="table-meta" aria-live="polite">
-        {total} {recordLabel}. Pagina {page} de {safeTotalPages}. {pageSize} por pagina.
+        {total} {recordLabel}. Página {page} de {safeTotalPages}. {pageSize} por página.
       </span>
-      <nav className="pagination-controls" aria-label="Paginacion de resultados">
+      <nav className="pagination-controls" aria-label="Paginación de resultados">
         <button
           type="button"
           className="btn btn-secondary btn-sm"

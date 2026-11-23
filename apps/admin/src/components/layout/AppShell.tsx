@@ -33,7 +33,7 @@ interface NavItem {
 
 const TOP_NAV: NavItem[] = [
   { to: '/', label: 'Panel de control', icon: LayoutDashboard },
-  { to: '/access-events', label: 'Bitacora de accesos', icon: Activity },
+  { to: '/access-events', label: 'Bitácora de accesos', icon: Activity },
 ]
 
 const CATALOG_NAV: NavItem[] = [
@@ -46,7 +46,7 @@ const BOTTOM_NAV: NavItem[] = [
   { to: '/permissions', label: 'Permisos de acceso', icon: KeyRound, requires: 'catalogs' },
   {
     to: '/areas',
-    label: 'Areas fisicas',
+    label: 'Áreas físicas',
     viewerLabel: 'Croquis en vivo',
     icon: Building2,
   },
@@ -69,8 +69,19 @@ function renderNavLink(item: NavItem) {
 }
 
 const SIDEBAR_STORAGE_KEY = 'scaccess-sidebar-collapsed'
+const MOBILE_SIDEBAR_QUERY = '(max-width: 960px)'
+
+function isCompactViewport(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false
+  }
+  return window.matchMedia(MOBILE_SIDEBAR_QUERY).matches
+}
 
 function readSidebarCollapsed(): boolean {
+  if (isCompactViewport()) {
+    return true
+  }
   try {
     return localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true'
   } catch {
@@ -100,6 +111,12 @@ export function AppShell() {
       setIsCatalogSubmenuOpen(true)
     }
   }, [isCatalogRouteActive])
+
+  useEffect(() => {
+    if (isCompactViewport()) {
+      setIsSidebarCollapsed(true)
+    }
+  }, [location.pathname])
 
   useEffect(() => {
     let active = true
@@ -148,10 +165,12 @@ export function AppShell() {
   function toggleSidebar() {
     const nextCollapsed = !isSidebarCollapsed
     setIsSidebarCollapsed(nextCollapsed)
-    try {
-      localStorage.setItem(SIDEBAR_STORAGE_KEY, String(nextCollapsed))
-    } catch {
-      // The sidebar still toggles when browser storage is unavailable.
+    if (!isCompactViewport()) {
+      try {
+        localStorage.setItem(SIDEBAR_STORAGE_KEY, String(nextCollapsed))
+      } catch {
+        // The sidebar still toggles when browser storage is unavailable.
+      }
     }
   }
 
@@ -202,7 +221,7 @@ export function AppShell() {
         </div>
 
         <div className="sidebar-body" hidden={isSidebarCollapsed}>
-          <nav className="nav-list" aria-label="Menu administrativo">
+          <nav className="nav-list" aria-label="Menú administrativo">
             {TOP_NAV.map(renderNavLink)}
 
             {canViewCatalogs ? (
@@ -246,7 +265,7 @@ export function AppShell() {
             ) : null}
             <button type="button" className="btn btn-secondary" onClick={() => void signOut()}>
               <LogOut size={15} aria-hidden="true" />
-              <span>Cerrar sesion</span>
+              <span>Cerrar sesión</span>
             </button>
           </div>
         </div>
@@ -262,7 +281,7 @@ export function AppShell() {
                   ? 'API conectada'
                   : apiState === 'waking'
                     ? 'Despertando la API en Render… puede tardar hasta 60 segundos.'
-                    : 'API sin respuesta. Verifica la conexion y vuelve a intentarlo.'}
+                    : 'API sin respuesta. Verifica la conexión y vuelve a intentarlo.'}
               </span>
               {apiState === 'online' && uptimeSeconds !== null ? (
                 <span aria-hidden="true" className="cell-secondary">
@@ -296,7 +315,7 @@ export function AppShell() {
           <Suspense
             fallback={
               <div className="surface-card" role="status" aria-live="polite">
-                <p className="empty-title">Cargando modulo…</p>
+                <p className="empty-title">Cargando módulo…</p>
                 <p className="empty-description">
                   La vista se descarga solo cuando la necesitas.
                 </p>

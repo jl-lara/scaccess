@@ -25,10 +25,12 @@ import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 import {
   DEVICE_STATUS_LABELS,
+  formatCount,
   formatDateTime,
   formatRelativeMinutes,
+  getDeviceConnectivity,
 } from '../lib/formatters'
-import { getErrorMessage } from '../lib/validation'
+import { getErrorMessage, hasLetters, isValidAreaCode } from '../lib/validation'
 
 const PAGE_SIZE = 20
 const DEVICE_STATUSES: DeviceStatus[] = ['active', 'inactive', 'maintenance']
@@ -94,10 +96,10 @@ export function DevicesPage() {
 
   function areaNames(device: AccessDeviceDto): string {
     if (device.areaIds.length === 0) {
-      return 'Sin areas asignadas'
+      return 'Sin áreas asignadas'
     }
     return device.areaIds
-      .map((areaId) => areaById.get(areaId)?.name ?? `Area ${areaId.slice(0, 8)}`)
+      .map((areaId) => areaById.get(areaId)?.name ?? `Área ${areaId.slice(0, 8)}`)
       .join(', ')
   }
 
@@ -133,7 +135,7 @@ export function DevicesPage() {
         <div>
           <h1 className="page-title">Controladores ESP32-S3</h1>
           <p className="page-description">
-            Controladores fisicos ESP32-S3, areas asignadas y estado de sincronizacion.
+            Controladores físicos ESP32-S3, áreas asignadas y estado de sincronización.
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
@@ -220,23 +222,27 @@ export function DevicesPage() {
           <span className="table-meta" role="status" aria-live="polite">
             {loading
               ? 'Consultando controladores…'
-              : `${pagination.total} controladores registrados`}
+              : formatCount(
+                  pagination.total,
+                  'controlador registrado',
+                  'controladores registrados',
+                )}
           </span>
         </div>
 
         <div className="table-wrapper">
           <table
-            className="data-table"
+            className="data-table responsive-table"
             aria-label="Controladores ESP32-S3 registrados"
             aria-busy={loading}
           >
             <thead>
               <tr>
                 <th scope="col">Controlador</th>
-                <th scope="col">Ubicacion</th>
-                <th scope="col">Areas asignadas</th>
+                <th scope="col">Ubicación</th>
+                <th scope="col">Áreas asignadas</th>
                 <th scope="col">Estado</th>
-                <th scope="col">Ultima conexion</th>
+                <th scope="col">Última conexión</th>
                 <th scope="col" className="align-right">
                   Acciones
                 </th>
@@ -255,7 +261,7 @@ export function DevicesPage() {
                   title="Sin controladores registrados"
                   description={
                     isAdmin
-                      ? 'Registra el primer lector ESP32-S3 para asignarle areas y emitir su credencial.'
+                      ? 'Registra el primer lector ESP32-S3 para asignarle áreas y emitir su credencial.'
                       : 'Solicita a un administrador que registre el primer lector ESP32-S3.'
                   }
                 >
@@ -271,80 +277,90 @@ export function DevicesPage() {
                   ) : null}
                 </TableMessage>
               ) : (
-                devices.map((device) => (
-                  <tr key={device.id}>
-                    <td>
-                      <div className="cell-stack">
-                        <span className="cell-primary">{device.name}</span>
-                        <span className="mono-code" translate="no">
-                          {device.deviceCode}
-                        </span>
-                        <span className="cell-secondary">
-                          {device.hardwareModel ?? 'Modelo sin definir'} / firmware{' '}
-                          <span className="mono-text" translate="no">
-                            {device.firmwareVersion ?? 'sin reportar'}
-                          </span>{' '}
-                          /{' '}
-                          <span className="mono-text" translate="no">
-                            config v{device.configVersion}
+                devices.map((device) => {
+                  const connectivity = getDeviceConnectivity(device)
+                  return (
+                    <tr key={device.id}>
+                      <td data-label="Controlador">
+                        <div className="cell-stack">
+                          <span className="cell-primary">{device.name}</span>
+                          <span className="mono-code" translate="no">
+                            {device.deviceCode}
                           </span>
-                        </span>
-                      </div>
-                    </td>
-                    <td className="cell-secondary">{device.location ?? 'Sin ubicacion'}</td>
-                    <td>{areaNames(device)}</td>
-                    <td>
-                      <StatusBadge variant={deviceBadgeVariant(device.status)}>
-                        {DEVICE_STATUS_LABELS[device.status]}
-                      </StatusBadge>
-                    </td>
-                    <td>
-                      <time
-                        className="cell-secondary"
-                        dateTime={device.lastSeenAt ?? undefined}
-                        title={formatDateTime(device.lastSeenAt)}
-                      >
-                        {formatRelativeMinutes(device.lastSeenAt)}
-                      </time>
-                    </td>
-                    <td>
-                      <div className="row-actions">
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => setSyncTarget(device)}
-                          aria-label={`Consultar sincronizacion de ${device.name}`}
+                          <span className="cell-secondary">
+                            {device.hardwareModel ?? 'Modelo sin definir'} / firmware{' '}
+                            <span className="mono-text" translate="no">
+                              {device.firmwareVersion ?? 'sin reportar'}
+                            </span>{' '}
+                            /{' '}
+                            <span className="mono-text" translate="no">
+                              config v{device.configVersion}
+                            </span>
+                          </span>
+                        </div>
+                      </td>
+                      <td data-label="Ubicación" className="cell-secondary">
+                        {device.location ?? 'Sin ubicación'}
+                      </td>
+                      <td data-label="Áreas asignadas">{areaNames(device)}</td>
+                      <td data-label="Estado">
+                        <div className="badge-list">
+                          <StatusBadge variant={connectivity.variant}>
+                            {connectivity.label}
+                          </StatusBadge>
+                          <StatusBadge variant={deviceBadgeVariant(device.status)}>
+                            {DEVICE_STATUS_LABELS[device.status]}
+                          </StatusBadge>
+                        </div>
+                      </td>
+                      <td data-label="Última conexión">
+                        <time
+                          className="cell-secondary"
+                          dateTime={device.lastSeenAt ?? undefined}
+                          title={formatDateTime(device.lastSeenAt)}
                         >
-                          <RefreshCw size={14} aria-hidden="true" />
-                          Sincronizacion
-                        </button>
-                        {isAdmin ? (
-                          <>
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => setDeviceModal({ mode: 'edit', device })}
-                              aria-label={`Editar ${device.name}`}
-                            >
-                              <Pencil size={14} aria-hidden="true" />
-                              Editar
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => void handleIssueCredential(device)}
-                              disabled={issuingDeviceId === device.id}
-                              aria-label={`Emitir credencial de ${device.name}`}
-                            >
-                              <KeyRound size={14} aria-hidden="true" />
-                              {issuingDeviceId === device.id ? 'Emitiendo…' : 'Credencial'}
-                            </button>
-                          </>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {formatRelativeMinutes(device.lastSeenAt)}
+                        </time>
+                      </td>
+                      <td data-label="Acciones">
+                        <div className="row-actions">
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => setSyncTarget(device)}
+                            aria-label={`Consultar sincronización de ${device.name}`}
+                          >
+                            <RefreshCw size={14} aria-hidden="true" />
+                            Sincronización
+                          </button>
+                          {isAdmin ? (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => setDeviceModal({ mode: 'edit', device })}
+                                aria-label={`Editar ${device.name}`}
+                              >
+                                <Pencil size={14} aria-hidden="true" />
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => void handleIssueCredential(device)}
+                                disabled={issuingDeviceId === device.id}
+                                aria-label={`Emitir credencial de ${device.name}`}
+                              >
+                                <KeyRound size={14} aria-hidden="true" />
+                                {issuingDeviceId === device.id ? 'Emitiendo…' : 'Credencial'}
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -413,17 +429,30 @@ function DeviceFormModal({ device, areas, onClose, onSaved }: DeviceFormModalPro
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!device && !deviceCode.trim()) {
-      setFormError('El codigo del controlador es obligatorio.')
+    const trimmedCode = deviceCode.trim()
+    const trimmedName = name.trim()
+
+    if (!device && !trimmedCode) {
+      setFormError('El código del controlador es obligatorio.')
       return
     }
-    if (!name.trim()) {
+    if (!device && !isValidAreaCode(trimmedCode)) {
+      setFormError(
+        'El código del controlador debe incluir letras y solo usar letras, números, guiones o guion bajo.',
+      )
+      return
+    }
+    if (!trimmedName) {
       setFormError('El nombre del controlador es obligatorio.')
+      return
+    }
+    if (!hasLetters(trimmedName)) {
+      setFormError('El nombre del controlador debe contener al menos una letra.')
       return
     }
 
     const payload = {
-      name: name.trim(),
+      name: trimmedName,
       location: location.trim() || null,
       hardwareModel: hardwareModel.trim() || null,
       firmwareVersion: firmwareVersion.trim() || null,
@@ -440,7 +469,7 @@ function DeviceFormModal({ device, areas, onClose, onSaved }: DeviceFormModalPro
         onSaved('Controlador actualizado correctamente.')
       } else {
         await api.createAccessDevice({
-          deviceCode: deviceCode.trim(),
+          deviceCode: trimmedCode,
           ...payload,
         })
         onSaved('Controlador registrado correctamente.')
@@ -456,26 +485,26 @@ function DeviceFormModal({ device, areas, onClose, onSaved }: DeviceFormModalPro
       title={device ? 'Editar controlador' : 'Nuevo controlador'}
       description={
         device
-          ? 'Cambiar las areas asignadas incrementa la version de configuracion y exige una nueva sincronizacion del equipo.'
-          : 'Registra el lector y asigna las areas donde puede validar accesos. La credencial se emite por separado.'
+          ? 'Cambiar las áreas asignadas incrementa la versión de configuración y exige una nueva sincronización del equipo.'
+          : 'Registra el lector y asigna las áreas donde puede validar accesos. La credencial se emite por separado.'
       }
       size="wide"
       onClose={onClose}
     >
-      <form autoComplete="off" onSubmit={(event) => void handleSubmit(event)}>
+      <form autoComplete="off" noValidate onSubmit={(event) => void handleSubmit(event)}>
         <div className="modal-body">
           {formError ? <NoticeBanner variant="error">{formError}</NoticeBanner> : null}
 
           {device ? (
             <div className="detail-grid">
               <div className="detail-item">
-                <div className="detail-label">Codigo del controlador</div>
+                <div className="detail-label">Código del controlador</div>
                 <div className="detail-value mono-text" translate="no">
                   {device.deviceCode}
                 </div>
               </div>
               <div className="detail-item">
-                <div className="detail-label">Version de configuracion actual</div>
+                <div className="detail-label">Versión de configuración actual</div>
                 <div className="detail-value mono-text">
                   v<span translate="no">{device.configVersion}</span>
                 </div>
@@ -487,7 +516,7 @@ function DeviceFormModal({ device, areas, onClose, onSaved }: DeviceFormModalPro
             {!device ? (
               <div className="form-field">
                 <label className="form-label" htmlFor="device-form-code">
-                  Codigo del controlador
+                  Código del controlador
                 </label>
                 <input
                   id="device-form-code"
@@ -504,7 +533,7 @@ function DeviceFormModal({ device, areas, onClose, onSaved }: DeviceFormModalPro
                   required
                 />
                 <span className="form-hint" id="device-form-code-hint">
-                  Identificador unico impreso en la etiqueta del equipo. No se puede cambiar despues
+                  Identificador único impreso en la etiqueta del equipo. No se puede cambiar después
                   del registro.
                 </span>
               </div>
@@ -529,7 +558,7 @@ function DeviceFormModal({ device, areas, onClose, onSaved }: DeviceFormModalPro
 
             <div className="form-field">
               <label className="form-label" htmlFor="device-form-location">
-                Ubicacion fisica
+                Ubicación física
               </label>
               <input
                 id="device-form-location"
@@ -561,7 +590,7 @@ function DeviceFormModal({ device, areas, onClose, onSaved }: DeviceFormModalPro
 
             <div className="form-field">
               <label className="form-label" htmlFor="device-form-firmware">
-                Version de firmware
+                Versión de firmware
               </label>
               <input
                 id="device-form-firmware"
@@ -601,11 +630,11 @@ function DeviceFormModal({ device, areas, onClose, onSaved }: DeviceFormModalPro
               aria-labelledby="device-form-areas-label"
             >
               <span className="form-label" id="device-form-areas-label">
-                Areas asignadas
+                Áreas asignadas
               </span>
               {areas.length === 0 ? (
                 <span className="form-error">
-                  No hay areas registradas. Crea una antes de asignarla al controlador.
+                  No hay áreas registradas. Crea una antes de asignarla al controlador.
                 </span>
               ) : (
                 <div className="checkbox-grid">
@@ -630,7 +659,7 @@ function DeviceFormModal({ device, areas, onClose, onSaved }: DeviceFormModalPro
                 </div>
               )}
               <span className="form-hint">
-                El controlador solo valida accesos en las areas seleccionadas.
+                El controlador solo valida accesos en las áreas seleccionadas.
               </span>
             </div>
           </div>
@@ -674,7 +703,7 @@ function SyncStateModal({ device, onClose }: SyncStateModalProps) {
       } catch (err) {
         if (active) {
           setError(
-            getErrorMessage(err, 'No se pudo consultar el estado de sincronizacion.'),
+            getErrorMessage(err, 'No se pudo consultar el estado de sincronización.'),
           )
         }
       } finally {
@@ -695,8 +724,8 @@ function SyncStateModal({ device, onClose }: SyncStateModalProps) {
 
   return (
     <Modal
-      title={`Estado de sincronizacion de ${device.name}`}
-      description="Comparacion entre la configuracion publicada por el servidor y la ultima version reportada por el controlador."
+      title={`Estado de sincronización de ${device.name}`}
+      description="Comparación entre la configuración publicada por el servidor y la última versión reportada por el controlador."
       size="wide"
       onClose={onClose}
     >
@@ -738,7 +767,7 @@ function SyncStateModal({ device, onClose }: SyncStateModalProps) {
             <div>
               <div>{synchronized ? 'Sincronizado' : 'Desactualizado'}</div>
               <div className="sync-verdict-detail mono-text" translate="no">
-                Reportada por el equipo: v{state.configVersion}. Version actual del servidor: v
+                Reportada por el equipo: v{state.configVersion}. Versión actual del servidor: v
                 {device.configVersion}.
               </div>
             </div>
@@ -746,7 +775,7 @@ function SyncStateModal({ device, onClose }: SyncStateModalProps) {
 
           <div className="detail-grid">
             <div className="detail-item">
-              <div className="detail-label">Ultima sincronizacion solicitada</div>
+              <div className="detail-label">Última sincronización solicitada</div>
               <div className="detail-value">
                 <time dateTime={state.lastSyncRequestedAt ?? undefined}>
                   {formatDateTime(state.lastSyncRequestedAt)}
@@ -754,7 +783,7 @@ function SyncStateModal({ device, onClose }: SyncStateModalProps) {
               </div>
             </div>
             <div className="detail-item">
-              <div className="detail-label">Ultima sincronizacion completada</div>
+              <div className="detail-label">Última sincronización completada</div>
               <div className="detail-value">
                 <time dateTime={state.lastSyncCompletedAt ?? undefined}>
                   {formatDateTime(state.lastSyncCompletedAt)}
@@ -762,7 +791,7 @@ function SyncStateModal({ device, onClose }: SyncStateModalProps) {
               </div>
             </div>
             <div className="detail-item">
-              <div className="detail-label">Ultimo evento recibido</div>
+              <div className="detail-label">Último evento recibido</div>
               <div className="detail-value">
                 <time dateTime={state.lastEventReceivedAt ?? undefined}>
                   {formatDateTime(state.lastEventReceivedAt)}
@@ -770,7 +799,7 @@ function SyncStateModal({ device, onClose }: SyncStateModalProps) {
               </div>
             </div>
             <div className="detail-item">
-              <div className="detail-label">Ultimo evento ocurrido en el lector</div>
+              <div className="detail-label">Último evento ocurrido en el lector</div>
               <div className="detail-value">
                 <time dateTime={state.lastEventOccurredAt ?? undefined}>
                   {formatDateTime(state.lastEventOccurredAt)}
@@ -780,17 +809,21 @@ function SyncStateModal({ device, onClose }: SyncStateModalProps) {
             <div className="detail-item">
               <div className="detail-label">Eventos pendientes reportados</div>
               <div className="detail-value">
-                {state.pendingEventCountReported ?? 0} evento(s) sin sincronizar
+                {formatCount(
+                  state.pendingEventCountReported ?? 0,
+                  'evento sin sincronizar',
+                  'eventos sin sincronizar',
+                )}
               </div>
             </div>
             <div className="detail-item">
-              <div className="detail-label">Ultimo codigo de error</div>
+              <div className="detail-label">Último código de error</div>
               <div className="detail-value mono-text" translate="no">
                 {state.lastErrorCode ?? 'Sin errores reportados'}
               </div>
             </div>
             <div className="detail-item">
-              <div className="detail-label">Fecha del ultimo error</div>
+              <div className="detail-label">Fecha del último error</div>
               <div className="detail-value">
                 <time dateTime={state.lastErrorAt ?? undefined}>
                   {formatDateTime(state.lastErrorAt)}
@@ -833,7 +866,7 @@ function IssuedTokenModal({ state, onClose }: IssuedTokenModalProps) {
       setCopyStatus('Token copiado al portapapeles.')
     } catch {
       setCopyStatus(
-        'No se pudo copiar automaticamente. Selecciona el token y copialo manualmente.',
+        'No se pudo copiar automáticamente. Selecciona el token y cópialo manualmente.',
       )
     }
   }
@@ -841,12 +874,12 @@ function IssuedTokenModal({ state, onClose }: IssuedTokenModalProps) {
   return (
     <Modal
       title="Credencial del dispositivo emitida"
-      description={`Token de autenticacion para ${state.device.name} (${state.device.deviceCode}).`}
+      description={`Token de autenticación para ${state.device.name} (${state.device.deviceCode}).`}
       size="wide"
       onClose={onClose}
     >
       <NoticeBanner variant="warning">
-        Este token solo se muestra una vez. Copialo ahora y guardalo en un lugar seguro; no volvera
+        Este token solo se muestra una vez. Cópialo ahora y guárdalo en un lugar seguro; no volverá
         a aparecer completo.
       </NoticeBanner>
 
@@ -893,7 +926,7 @@ function IssuedTokenModal({ state, onClose }: IssuedTokenModalProps) {
                 {formatDateTime(state.issued.expiresAt)}
               </time>
             ) : (
-              'Sin fecha de expiracion'
+              'Sin fecha de expiración'
             )}
           </div>
         </div>

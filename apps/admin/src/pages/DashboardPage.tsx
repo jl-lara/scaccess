@@ -33,8 +33,10 @@ import { usePermissions } from '../lib/permissions'
 import {
   DEVICE_STATUS_LABELS,
   REASON_LABELS,
+  formatCount,
   formatDateTimeWithSeconds,
   formatRelativeMinutes,
+  getDeviceConnectivity,
 } from '../lib/formatters'
 
 const TIME_FORMATTER = new Intl.DateTimeFormat('es-MX', {
@@ -46,6 +48,7 @@ const TIME_FORMATTER = new Intl.DateTimeFormat('es-MX', {
 const PULSE_TIME_FORMATTER = new Intl.DateTimeFormat('es-MX', {
   hour: '2-digit',
   minute: '2-digit',
+  hour12: false,
 })
 
 const UNKNOWN_AREA_LABEL = 'Área sin catálogo'
@@ -248,17 +251,17 @@ function buildKpiCards({
     : '—'
 
   const areasCard: KpiCardItem = {
-    label: 'Areas protegidas',
+    label: 'Áreas protegidas',
     Icon: Building2,
     value: summary ? summary.areas.active : '—',
     meta: `Total configuradas: ${summary ? summary.areas.total : '—'}`,
     hoverDetails: [
-      `Areas inactivas: ${inactiveAreas}`,
-      `Con actividad reciente: ${activeAreasCount} area(s)`,
+      `Áreas inactivas: ${inactiveAreas}`,
+      `Con actividad reciente: ${formatCount(activeAreasCount, 'área', 'áreas')}`,
     ],
     to: '/areas',
-    linkText: canViewCatalogs ? 'Ver areas' : 'Ver croquis',
-    linkAriaLabel: canViewCatalogs ? 'Ver areas protegidas' : 'Ver croquis de areas protegidas',
+    linkText: canViewCatalogs ? 'Ver áreas' : 'Ver croquis',
+    linkAriaLabel: canViewCatalogs ? 'Ver áreas protegidas' : 'Ver croquis de áreas protegidas',
   }
 
   const grantedCard: KpiCardItem = {
@@ -268,7 +271,7 @@ function buildKpiCards({
     meta: hasRecentActivity ? `${grantedPct}% de intentos recientes` : 'Sin actividad reciente',
     hoverDetails: [
       `Total evaluados (24h): ${total24h}`,
-      `En muestra reciente: ${recentGrantedCount} permitido(s)`,
+      `En muestra reciente: ${formatCount(recentGrantedCount, 'permitido', 'permitidos')}`,
     ],
     to: '/access-events',
     linkText: 'Auditar',
@@ -303,7 +306,7 @@ function buildKpiCards({
       meta: `Total registrados: ${summary ? summary.employees.total : '—'}`,
       hoverDetails: [
         `Inactivos / baja: ${inactiveEmployees}`,
-        `Personal activo: ${activeEmployeesPct}% del padron`,
+        `Personal activo: ${activeEmployeesPct}% del padrón`,
       ],
       to: '/employees',
       linkText: canWriteCatalog ? 'Gestionar' : 'Ver empleados',
@@ -329,12 +332,12 @@ function buildKpiCards({
       value: summary ? `${summary.devices.active}/${summary.devices.total}` : '—',
       meta: `Desactualizados: ${summary ? outOfSync : '—'}`,
       hoverDetails: [
-        `Sincronizados al dia: ${syncedDevices}`,
+        `Sincronizados al día: ${syncedDevices}`,
         `Inactivos / mantenimiento: ${inactiveDevices}`,
       ],
       to: '/devices',
-      linkText: 'Sincronizacion',
-      linkAriaLabel: 'Revisar sincronizacion de controladores',
+      linkText: 'Sincronización',
+      linkAriaLabel: 'Revisar sincronización de controladores',
       variant: summary && outOfSync > 0 ? 'variant-warning' : 'variant-granted',
     },
     grantedCard,
@@ -527,7 +530,7 @@ export function DashboardPage() {
   })
 
   const dashboardDescription = !canViewCatalogs
-    ? 'Monitoreo en vivo de accesos recientes y estado por area.'
+    ? 'Monitoreo en vivo de accesos recientes y estado por área.'
     : !canWriteCatalog
       ? 'Consulta operativa de indicadores, actividad reciente y estado de controladores.'
       : 'Resumen operativo de accesos, acreditaciones y controladores ESP32-S3 (24h).'
@@ -549,11 +552,11 @@ export function DashboardPage() {
             aria-busy={loading}
           >
             <RefreshCw size={15} aria-hidden="true" />
-            <span>{loading ? 'Actualizando…' : 'Actualizar telemetria'}</span>
+            <span>{loading ? 'Actualizando…' : 'Actualizar telemetría'}</span>
           </button>
           {lastUpdatedAt ? (
             <span className="table-meta" role="status" aria-live="polite">
-              Telemetria actualizada a las{' '}
+              Telemetría actualizada a las{' '}
               <time dateTime={lastUpdatedAt.toISOString()}>
                 {TIME_FORMATTER.format(lastUpdatedAt)}
               </time>
@@ -580,8 +583,10 @@ export function DashboardPage() {
           <div className="dashboard-alert-copy">
             <AlertTriangle size={18} aria-hidden="true" />
             <span>
-              Atencion operativa: <strong>{summary.devices.outOfSync}</strong> controlador(es)
-              activo(s) tienen cambios de configuracion pendientes de sincronizar.
+              Atención operativa:{' '}
+              <strong>{formatCount(summary.devices.outOfSync, 'controlador activo', 'controladores activos')}</strong>{' '}
+              {summary.devices.outOfSync === 1 ? 'tiene' : 'tienen'} cambios de configuración
+              pendientes de sincronizar.
             </span>
           </div>
           <Link to="/devices" className="btn btn-secondary btn-sm">
@@ -676,7 +681,7 @@ export function DashboardPage() {
                 <div
                   className="ratio-bar-track"
                   role="img"
-                  aria-label={`Proporcion de accesos de las ultimas 24 horas: ${summary?.recentEvents24h.granted ?? 0} concedidos (${grantedPct}%) y ${summary?.recentEvents24h.denied ?? 0} denegados (${deniedPct}%).`}
+                  aria-label={`Proporción de accesos de las últimas 24 horas: ${summary?.recentEvents24h.granted ?? 0} concedidos (${grantedPct}%) y ${summary?.recentEvents24h.denied ?? 0} denegados (${deniedPct}%).`}
                 >
                   <div
                     className="ratio-bar-granted"
@@ -705,8 +710,8 @@ export function DashboardPage() {
             ) : (
               <p className="table-meta" role="status">
                 {loading
-                  ? 'Consultando actividad de las ultimas 24 horas…'
-                  : 'Sin eventos de acceso en las ultimas 24 horas.'}
+                  ? 'Consultando actividad de las últimas 24 horas…'
+                  : 'Sin eventos de acceso en las últimas 24 horas.'}
               </p>
             )}
           </div>
@@ -799,7 +804,7 @@ export function DashboardPage() {
                         <div className="area-detail-slot">
                           {isAreaHovered ? (
                             <div className="area-row-detail">
-                              {areaGrantedPct}% aprobacion · {bucket.total} lectura(s) recientes
+                              {areaGrantedPct}% aprobación · {formatCount(bucket.total, 'lectura reciente', 'lecturas recientes')}
                             </div>
                           ) : (
                             <span className="area-row-hint" aria-hidden="true">
@@ -996,7 +1001,7 @@ export function DashboardPage() {
                 <StatusBadge variant={outOfSync > 0 ? 'warning' : 'success'}>
                   {outOfSync > 0
                     ? `${outOfSync} por sincronizar`
-                    : 'Configuracion sincronizada'}
+                    : 'Configuración sincronizada'}
                 </StatusBadge>
                 <StatusBadge variant="neutral">
                   {summary.devices.active} de {summary.devices.total} activos
@@ -1004,7 +1009,7 @@ export function DashboardPage() {
               </>
             ) : (
               <span className="table-meta">
-                Consultando estado de sincronizacion… {COLD_START_HINT}
+                Consultando estado de sincronización… {COLD_START_HINT}
               </span>
             )}
           </div>
@@ -1020,6 +1025,7 @@ export function DashboardPage() {
               <div className="device-compact-list" role="list">
                 {visibleDevices.map((dev) => {
                   const isDeviceHovered = hoveredDeviceId === dev.id
+                  const connectivity = getDeviceConnectivity(dev)
 
                   return (
                     <div
@@ -1047,12 +1053,17 @@ export function DashboardPage() {
                             {dev.deviceCode}
                           </span>
                         </div>
-                        <StatusBadge variant={deviceBadgeVariant(dev.status)}>
-                          {DEVICE_STATUS_LABELS[dev.status]}
-                        </StatusBadge>
+                        <div className="badge-list">
+                          <StatusBadge variant={connectivity.variant}>
+                            {connectivity.label}
+                          </StatusBadge>
+                          <StatusBadge variant={deviceBadgeVariant(dev.status)}>
+                            {DEVICE_STATUS_LABELS[dev.status]}
+                          </StatusBadge>
+                        </div>
                       </div>
                       <div className="device-compact-meta">
-                        <span>Ubicacion: {dev.location ?? 'Sin especificar'}</span>
+                        <span>Ubicación: {dev.location ?? 'Sin especificar'}</span>
                         <span>
                           <span className="mono-text" translate="no">
                             config v{dev.configVersion}
@@ -1071,11 +1082,11 @@ export function DashboardPage() {
                           <div className="device-hover-extra">
                             <span>Hardware: {dev.hardwareModel ?? 'ESP32-S3'}</span>
                             <span>Firmware: {dev.firmwareVersion ?? 'Sin reportar'}</span>
-                            <span>Areas: {dev.areaIds.length}</span>
+                            <span>Áreas: {dev.areaIds.length}</span>
                           </div>
                         ) : (
                           <span className="device-extra-hint" aria-hidden="true">
-                            Pasa el cursor para ver hardware y areas
+                            Pasa el cursor para ver hardware y áreas
                           </span>
                         )}
                       </div>

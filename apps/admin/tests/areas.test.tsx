@@ -7,10 +7,12 @@ import {
   AREA_LAB,
   AREA_MAIN,
   AREAS,
+  CREDENTIAL_ACTIVE,
   EMPLOYEE_ANA,
   EMPLOYEE_LUIS,
   EMPLOYEES,
   EVENT_GRANTED,
+  PERMISSION_ACTIVE,
   makeAuth,
   paginated,
 } from './fixtures'
@@ -23,6 +25,8 @@ vi.mock('../src/lib/api', () => ({
     updateArea: vi.fn(),
     listAccessEvents: vi.fn(),
     listEmployees: vi.fn(),
+    listAccessPermissions: vi.fn(),
+    listCredentials: vi.fn(),
   },
 }))
 
@@ -47,6 +51,8 @@ describe('AreasPage', () => {
     vi.mocked(api.updateArea).mockResolvedValue(AREA_MAIN)
     vi.mocked(api.listAccessEvents).mockResolvedValue(paginated([]))
     vi.mocked(api.listEmployees).mockResolvedValue(paginated(EMPLOYEES))
+    vi.mocked(api.listAccessPermissions).mockResolvedValue(paginated([PERMISSION_ACTIVE], 1, 200))
+    vi.mocked(api.listCredentials).mockResolvedValue(paginated([CREDENTIAL_ACTIVE], 1, 200))
   })
 
   it('shows the catalog in read-only mode for auditors', async () => {
@@ -56,63 +62,74 @@ describe('AreasPage', () => {
     expect(within(table).getByText('Acceso Principal')).toBeInTheDocument()
     expect(within(table).getByText('MAIN_ENTRANCE')).toBeInTheDocument()
     expect(within(table).getAllByText('America/Tijuana')).toHaveLength(2)
-    expect(screen.queryByRole('button', { name: 'Nueva area' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Nueva área' })).not.toBeInTheDocument()
     expect(
-      screen.getByText(/solo un administrador puede crear o modificar areas/i),
+      screen.getByText(/solo un administrador puede crear o modificar áreas/i),
     ).toBeInTheDocument()
   })
 
-  it('creates an area from the admin modal', async () => {
+  it('creates an area from the admin modal and rejects numeric-only names/codes (H4)', async () => {
     renderWithAuth(<AreasPage />, makeAuth(['admin']))
 
     await screen.findByRole('table')
-    fireEvent.click(screen.getByRole('button', { name: 'Nueva area' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Nueva área' }))
 
-    const dialog = screen.getByRole('dialog', { name: 'Nueva area' })
+    const dialog = screen.getByRole('dialog', { name: 'Nueva área' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    fireEvent.change(within(dialog).getByLabelText('Codigo del area'), {
-      target: { value: 'lab_north' },
+
+    fireEvent.change(within(dialog).getByLabelText('Código del área'), {
+      target: { value: '12345' },
     })
-    fireEvent.change(within(dialog).getByLabelText('Nombre del area'), {
+    fireEvent.change(within(dialog).getByLabelText('Nombre del área'), {
       target: { value: 'Laboratorio Norte' },
     })
-    fireEvent.change(within(dialog).getByLabelText('Descripcion'), {
-      target: { value: 'Zona restringida de investigacion' },
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar área' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/letras/i)
+    expect(api.createArea).not.toHaveBeenCalled()
+
+    fireEvent.change(within(dialog).getByLabelText('Código del área'), {
+      target: { value: 'lab_north' },
     })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar area' }))
+    fireEvent.change(within(dialog).getByLabelText('Nombre del área'), {
+      target: { value: 'Laboratorio Norte' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Descripción'), {
+      target: { value: 'Zona restringida de investigación' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar área' }))
 
     await waitFor(() => {
       expect(api.createArea).toHaveBeenCalledWith({
         code: 'LAB_NORTH',
         name: 'Laboratorio Norte',
-        description: 'Zona restringida de investigacion',
+        description: 'Zona restringida de investigación',
         timezone: 'America/Tijuana',
         isActive: true,
       })
     })
-    expect(await screen.findByText('Area creada correctamente.')).toBeInTheDocument()
+    expect(await screen.findByText('Área creada correctamente.')).toBeInTheDocument()
   })
 
   it('rejects an invalid IANA timezone before calling the API', async () => {
     renderWithAuth(<AreasPage />, makeAuth(['admin']))
 
     await screen.findByRole('table')
-    fireEvent.click(screen.getByRole('button', { name: 'Nueva area' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Nueva área' }))
 
-    const dialog = screen.getByRole('dialog', { name: 'Nueva area' })
-    fireEvent.change(within(dialog).getByLabelText('Codigo del area'), {
+    const dialog = screen.getByRole('dialog', { name: 'Nueva área' })
+    fireEvent.change(within(dialog).getByLabelText('Código del área'), {
       target: { value: 'QA_ZONE' },
     })
-    fireEvent.change(within(dialog).getByLabelText('Nombre del area'), {
+    fireEvent.change(within(dialog).getByLabelText('Nombre del área'), {
       target: { value: 'Zona QA' },
     })
     fireEvent.change(within(dialog).getByLabelText('Zona horaria'), {
       target: { value: 'Not/AZone' },
     })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar area' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar área' }))
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      /La zona horaria no es valida/i,
+      /La zona horaria no es válida/i,
     )
     expect(api.createArea).not.toHaveBeenCalled()
   })
@@ -124,15 +141,15 @@ describe('AreasPage', () => {
     const row = within(table).getByText('Acceso Principal').closest('tr')
     if (!row) throw new Error('No se encontro la fila del area principal')
 
-    fireEvent.click(within(row).getByRole('button', { name: 'Editar area Acceso Principal' }))
+    fireEvent.click(within(row).getByRole('button', { name: 'Editar área Acceso Principal' }))
 
-    const dialog = screen.getByRole('dialog', { name: 'Editar area' })
+    const dialog = screen.getByRole('dialog', { name: 'Editar área' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    fireEvent.change(within(dialog).getByLabelText('Nombre del area'), {
+    fireEvent.change(within(dialog).getByLabelText('Nombre del área'), {
       target: { value: 'Acceso Principal Norte' },
     })
-    fireEvent.click(within(dialog).getByLabelText('Area activa y disponible para permisos'))
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar area' }))
+    fireEvent.click(within(dialog).getByLabelText('Área activa y disponible para permisos'))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar área' }))
 
     await waitFor(() => {
       expect(api.updateArea).toHaveBeenCalledWith(
@@ -144,7 +161,7 @@ describe('AreasPage', () => {
         }),
       )
     })
-    expect(await screen.findByText('Area actualizada correctamente.')).toBeInTheDocument()
+    expect(await screen.findByText('Área actualizada correctamente.')).toBeInTheDocument()
   })
 
   it('shows an actionable empty state for administrators', async () => {
@@ -152,8 +169,8 @@ describe('AreasPage', () => {
     renderWithAuth(<AreasPage />, makeAuth(['admin']))
 
     const table = await screen.findByRole('table')
-    expect(await screen.findByText('Sin areas registradas')).toBeInTheDocument()
-    expect(within(table).getByRole('button', { name: 'Crear area' })).toBeInTheDocument()
+    expect(await screen.findByText('Sin áreas registradas')).toBeInTheDocument()
+    expect(within(table).getByRole('button', { name: 'Crear área' })).toBeInTheDocument()
   })
 
   it('reports a catalog error and retries the load', async () => {
@@ -172,7 +189,7 @@ describe('AreasPage', () => {
   it('sections catalog, live floor plan, and simulator into separate tabs', async () => {
     renderWithAuth(<AreasPage />, makeAuth(['admin']))
 
-    const catalogTab = screen.getByRole('tab', { name: /Catalogo de areas/i })
+    const catalogTab = screen.getByRole('tab', { name: /Catálogo de áreas/i })
     const floorPlanTab = screen.getByRole('tab', { name: /Croquis en vivo/i })
     const simulatorTab = screen.getByRole('tab', { name: /Simulador de accesos/i })
 
@@ -180,7 +197,7 @@ describe('AreasPage', () => {
     expect(floorPlanTab).toHaveAttribute('aria-selected', 'false')
     expect(simulatorTab).toHaveAttribute('aria-selected', 'false')
     expect(await screen.findByRole('table')).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: /Croquis de las areas/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /Croquis de las áreas/i })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Empleado a mover')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Simular movimiento (Entrada / Salida)' }),
@@ -191,12 +208,12 @@ describe('AreasPage', () => {
     expect(floorPlanTab).toHaveAttribute('aria-selected', 'true')
     expect(catalogTab).toHaveAttribute('aria-selected', 'false')
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
-    expect(await screen.findByRole('region', { name: /Croquis de las areas/i })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: /Croquis de las áreas/i })).toBeInTheDocument()
     expect(screen.getByLabelText('Buscar empleado en el croquis')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Actualizar eventos' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Empleado a mover')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Movimiento')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Area de destino')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Área de destino')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Simular movimiento (Entrada / Salida)' }),
     ).not.toBeInTheDocument()
@@ -212,10 +229,10 @@ describe('AreasPage', () => {
     expect(simulatorTab).toHaveAttribute('aria-selected', 'true')
     expect(floorPlanTab).toHaveAttribute('aria-selected', 'false')
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
-    expect(await screen.findByRole('region', { name: /Croquis de las areas/i })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: /Croquis de las áreas/i })).toBeInTheDocument()
     expect(screen.getByLabelText('Empleado a mover')).toBeInTheDocument()
     expect(screen.getByLabelText('Movimiento')).toBeInTheDocument()
-    expect(screen.getByLabelText('Area de destino')).toBeInTheDocument()
+    expect(screen.getByLabelText('Área de destino')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Simular movimiento (Entrada / Salida)' }),
     ).toBeInTheDocument()
@@ -229,7 +246,7 @@ describe('AreasPage', () => {
 
     expect(catalogTab).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByRole('table')).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: /Croquis de las areas/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /Croquis de las áreas/i })).not.toBeInTheDocument()
   })
 
   it('renders the floor plan and locates employees using granted entries and exits', async () => {
@@ -261,10 +278,10 @@ describe('AreasPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /Croquis en vivo/i }))
 
-    const floorPlan = await screen.findByRole('region', { name: /Croquis de las areas/i })
+    const floorPlan = await screen.findByRole('region', { name: /Croquis de las áreas/i })
     expect(
       within(floorPlan).getByRole('heading', {
-        name: 'Croquis de las areas y ubicacion en tiempo real (Simulacion)',
+        name: 'Croquis de las áreas y ubicación en tiempo real (Simulación)',
       }),
     ).toBeInTheDocument()
     expect(await within(floorPlan).findByText('MAIN_ENTRANCE')).toBeInTheDocument()
@@ -280,7 +297,7 @@ describe('AreasPage', () => {
 
     const exteriorZone = screen.getByTestId('floor-zone-exterior')
     expect(within(exteriorZone).getByText('Exterior / Salida registrada')).toBeInTheDocument()
-    expect(within(exteriorZone).getByText('Fuera de instalaciones / En transito')).toBeInTheDocument()
+    expect(within(exteriorZone).getByText('Fuera de instalaciones / En tránsito')).toBeInTheDocument()
     expect(await within(exteriorZone).findByText('Luis Ramos')).toBeInTheDocument()
     expect(within(exteriorZone).getByText(/EMP-002/)).toBeInTheDocument()
   })
@@ -355,7 +372,7 @@ describe('AreasPage', () => {
     ).not.toBeNull()
     expect(within(luisChip).getByText('Luis Ramos').closest('.sr-only')).not.toBeNull()
 
-    const floorPlan = screen.getByRole('region', { name: /Croquis de las areas/i })
+    const floorPlan = screen.getByRole('region', { name: /Croquis de las áreas/i })
     const legendTitle = within(floorPlan).getByText('Simbología:')
     const legend = legendTitle.closest('.croquis__legend')
     if (!(legend instanceof HTMLElement)) {
@@ -384,7 +401,7 @@ describe('AreasPage', () => {
 
     fireEvent.change(employeeSelect, { target: { value: EMPLOYEE_ANA.id } })
     fireEvent.change(screen.getByLabelText('Movimiento'), { target: { value: 'entry' } })
-    fireEvent.change(screen.getByLabelText('Area de destino'), {
+    fireEvent.change(screen.getByLabelText('Área de destino'), {
       target: { value: AREA_MAIN.id },
     })
     fireEvent.click(
@@ -446,14 +463,14 @@ describe('AreasPage', () => {
     fireEvent.change(searchInput, { target: { value: 'Ana' } })
 
     expect(
-      await screen.findByText('Ubicacion: Ana Torres: Acceso Principal'),
+      await screen.findByText('Ubicación: Ana Torres: Acceso Principal'),
     ).toBeInTheDocument()
     expect(mainZone).toHaveClass('is-match')
     expect(screen.getByTestId('floor-zone-exterior')).not.toHaveClass('is-match')
 
     fireEvent.change(searchInput, { target: { value: 'sin-coincidencias' } })
     expect(
-      await screen.findByText('Sin empleados que coincidan con la busqueda.'),
+      await screen.findByText('Sin empleados que coincidan con la búsqueda.'),
     ).toBeInTheDocument()
   })
 
@@ -483,5 +500,133 @@ describe('AreasPage', () => {
     expect(await within(exteriorZone).findByText('Ana Torres')).toBeInTheDocument()
     const mainZone = await screen.findByTestId(`floor-zone-${AREA_MAIN.id}`)
     expect(within(mainZone).queryByText('Ana Torres')).not.toBeInTheDocument()
+  })
+
+  it('excludes inactive employees from simulator by default and enforces permission, credential and capacity rules (H1, H2, H5)', async () => {
+    const serverRoom = {
+      ...AREA_LAB,
+      id: 'area-srv',
+      code: 'SERVER_ROOM',
+      name: 'Cuarto de Servidores',
+      isActive: true,
+    }
+    const extraEmployees = [
+      EMPLOYEE_ANA,
+      { ...EMPLOYEE_LUIS, id: 'emp-2', status: 'suspended' as const },
+      { ...EMPLOYEE_ANA, id: 'emp-3', employeeCode: 'EMP-003', firstName: 'Carlos', lastName: 'Ruiz' },
+      { ...EMPLOYEE_ANA, id: 'emp-4', employeeCode: 'EMP-004', firstName: 'Elena', lastName: 'Diaz' },
+      { ...EMPLOYEE_ANA, id: 'emp-5', employeeCode: 'EMP-005', firstName: 'Marco', lastName: 'Solis' },
+    ]
+    const allAreas = [AREA_MAIN, serverRoom]
+
+    vi.mocked(api.listAreas).mockResolvedValue(paginated(allAreas))
+    vi.mocked(api.listEmployees).mockResolvedValue(paginated(extraEmployees))
+    vi.mocked(api.listCredentials).mockResolvedValue(
+      paginated(
+        ['emp-1', 'emp-3', 'emp-4', 'emp-5'].map((employeeId, idx) => ({
+          ...CREDENTIAL_ACTIVE,
+          id: `cred-${idx + 1}`,
+          employeeId,
+          cardUid: `04A1B2C3D4000${idx + 1}`,
+        })),
+        1,
+        200,
+      ),
+    )
+    vi.mocked(api.listAccessPermissions).mockResolvedValue(
+      paginated(
+        ['emp-3', 'emp-4', 'emp-5'].map((employeeId, idx) => ({
+          ...PERMISSION_ACTIVE,
+          id: `perm-${idx + 1}`,
+          employeeId,
+          areaId: serverRoom.id,
+          validFrom: null,
+          validTo: null,
+          revokedAt: null,
+        })),
+        1,
+        200,
+      ),
+    )
+
+    renderWithAuth(<AreasPage />, makeAuth(['admin']))
+    fireEvent.click(screen.getByRole('tab', { name: /Simulador de accesos/i }))
+
+    const employeeSelect = await screen.findByLabelText('Empleado a mover')
+    await waitFor(() => {
+      expect(within(employeeSelect).getByRole('option', { name: /Ana Torres/ })).toBeInTheDocument()
+    })
+    // H5: suspended Luis Ramos is hidden unless checkbox is enabled
+    expect(within(employeeSelect).queryByRole('option', { name: /Luis Ramos/ })).not.toBeInTheDocument()
+
+    // H1: Ana lacks permission in SERVER_ROOM -> denied
+    fireEvent.change(employeeSelect, { target: { value: 'emp-1' } })
+    fireEvent.change(screen.getByLabelText('Movimiento'), { target: { value: 'entry' } })
+    fireEvent.change(screen.getByLabelText('Área de destino'), { target: { value: serverRoom.id } })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Simular movimiento (Entrada / Salida)' }),
+    )
+    expect(
+      await screen.findByText(/Acceso denegado: Ana Torres no tiene permiso asignado para Cuarto de Servidores/),
+    ).toBeInTheDocument()
+
+    // H1: Including suspended employee -> denied due to employee status
+    fireEvent.click(
+      screen.getByLabelText('Incluir inactivos/suspendidos (para probar rechazos)'),
+    )
+    expect(within(employeeSelect).getByRole('option', { name: /Luis Ramos/ })).toBeInTheDocument()
+    fireEvent.change(employeeSelect, { target: { value: 'emp-2' } })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Simular movimiento (Entrada / Salida)' }),
+    )
+    expect(
+      await screen.findByText(/Acceso denegado: Luis Ramos tiene estado suspendido/),
+    ).toBeInTheDocument()
+
+    // H2: Fill SERVER_ROOM (capacity 3) and block 4th entry (Marco -> actually Ana lacks perm, use emp-5 after emp-1/emp-3/emp-4)
+    vi.mocked(api.listAccessPermissions).mockResolvedValueOnce(
+      paginated(
+        ['emp-1', 'emp-3', 'emp-4', 'emp-5'].map((employeeId, idx) => ({
+          ...PERMISSION_ACTIVE,
+          id: `perm-all-${idx + 1}`,
+          employeeId,
+          areaId: serverRoom.id,
+          validFrom: null,
+          validTo: null,
+          revokedAt: null,
+        })),
+        1,
+        200,
+      ),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar eventos' }))
+    await waitFor(() => {
+      expect(api.listAccessPermissions).toHaveBeenCalledTimes(2)
+    })
+
+    for (const employeeId of ['emp-1', 'emp-3', 'emp-4']) {
+      fireEvent.change(employeeSelect, { target: { value: employeeId } })
+      fireEvent.change(screen.getByLabelText('Movimiento'), { target: { value: 'entry' } })
+      fireEvent.change(screen.getByLabelText('Área de destino'), {
+        target: { value: serverRoom.id },
+      })
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Simular movimiento (Entrada / Salida)' }),
+      )
+    }
+
+    const serverZone = screen.getByTestId(`floor-zone-${serverRoom.id}`)
+    expect(within(serverZone).getByText('3 personas en zona')).toBeInTheDocument()
+    expect(within(serverZone).getByText(/Aforo completo/)).toBeInTheDocument()
+
+    fireEvent.change(employeeSelect, { target: { value: 'emp-5' } })
+    fireEvent.change(screen.getByLabelText('Movimiento'), { target: { value: 'entry' } })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Simular movimiento (Entrada / Salida)' }),
+    )
+    expect(
+      await screen.findByText(/Capacidad máxima alcanzada en Cuarto de Servidores \(3\/3 personas\)/),
+    ).toBeInTheDocument()
+    expect(within(serverZone).queryByText('Marco Solis')).not.toBeInTheDocument()
   })
 })

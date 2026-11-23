@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Pencil, Plus, Search } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
 import type { AreaDto, PaginationMeta } from '@scaccess/shared'
 import { AreasFloorPlan } from '../components/areas/AreasFloorPlan'
 import { Modal } from '../components/ui/Modal'
@@ -8,9 +8,9 @@ import { Pagination } from '../components/ui/Pagination'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { COLD_START_HINT, TableMessage } from '../components/ui/TableMessage'
 import { api } from '../lib/api'
-import { formatDateTime } from '../lib/formatters'
+import { formatCount, formatDateTime } from '../lib/formatters'
 import { usePermissions } from '../lib/permissions'
-import { getErrorMessage } from '../lib/validation'
+import { getErrorMessage, hasLetters, isValidAreaCode } from '../lib/validation'
 
 const PAGE_SIZE = 20
 const DEFAULT_TIMEZONE = 'America/Tijuana'
@@ -21,8 +21,6 @@ const EMPTY_PAGINATION: PaginationMeta = {
   total: 0,
   totalPages: 0,
 }
-
-const COUNT_FORMATTER = new Intl.NumberFormat('es-MX')
 
 type ActiveFilter = '' | 'true' | 'false'
 type AreasSection = 'catalog' | 'floorplan' | 'simulator'
@@ -66,7 +64,7 @@ export function AreasPage() {
       setError(
         getErrorMessage(
           err,
-          'No se pudo cargar el catalogo de areas protegidas. Revisa tu conexion y vuelve a intentarlo.',
+          'No se pudo cargar el catálogo de áreas protegidas. Revisa tu conexión y vuelve a intentarlo.',
         ),
       )
     } finally {
@@ -77,6 +75,19 @@ export function AreasPage() {
   useEffect(() => {
     void loadAreas()
   }, [loadAreas])
+
+  useEffect(() => {
+    const trimmed = searchInput.trim()
+    if (trimmed === appliedSearch) {
+      return
+    }
+    const timer = setTimeout(() => {
+      setPage(1)
+      setAppliedSearch(trimmed)
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [searchInput, appliedSearch])
 
   function handleFilterSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -108,13 +119,13 @@ export function AreasPage() {
     <div className="page-stack">
       <div className="page-header">
         <div>
-          <h1 className="page-title">{canViewCatalogs ? 'Areas fisicas' : 'Croquis en vivo'}</h1>
+          <h1 className="page-title">{canViewCatalogs ? 'Áreas físicas' : 'Croquis en vivo'}</h1>
           <p className="page-description">
             {!canViewCatalogs
-              ? 'Monitoreo en tiempo real de ocupacion y accesos por zona fisica.'
+              ? 'Monitoreo en tiempo real de ocupación y accesos por zona física.'
               : canUseSimulator
-                ? 'Zonas protegidas por controladores ESP32-S3, ocupacion en vivo y simulacion de accesos.'
-                : 'Zonas protegidas por controladores ESP32-S3 y ocupacion en vivo.'}
+                ? 'Zonas protegidas por controladores ESP32-S3, ocupación en vivo y simulación de accesos.'
+                : 'Zonas protegidas por controladores ESP32-S3 y ocupación en vivo.'}
           </p>
         </div>
         {isAdmin ? (
@@ -124,7 +135,7 @@ export function AreasPage() {
             onClick={() => setModal({ mode: 'create' })}
           >
             <Plus size={16} aria-hidden="true" />
-            Nueva area
+            Nueva área
           </button>
         ) : null}
       </div>
@@ -165,12 +176,12 @@ export function AreasPage() {
 
       {canViewCatalogs && !isAdmin ? (
         <NoticeBanner variant="warning">
-          Puedes consultar el catalogo, pero solo un administrador puede crear o modificar areas.
+          Puedes consultar el catálogo, pero solo un administrador puede crear o modificar áreas.
         </NoticeBanner>
       ) : null}
 
       {canViewCatalogs ? (
-        <div className="section-tabs" role="tablist" aria-label="Secciones de areas fisicas">
+        <div className="section-tabs" role="tablist" aria-label="Secciones de áreas físicas">
           <button
             type="button"
             role="tab"
@@ -180,7 +191,7 @@ export function AreasPage() {
             className={`section-tab${effectiveSection === 'catalog' ? ' is-active' : ''}`}
             onClick={() => setActiveSection('catalog')}
           >
-            Catalogo de areas
+            Catálogo de áreas
           </button>
           <button
             type="button"
@@ -211,171 +222,172 @@ export function AreasPage() {
 
       {canViewCatalogs && effectiveSection === 'catalog' ? (
         <div id="panel-areas-catalog" role="tabpanel" aria-labelledby="tab-areas-catalog">
-          <section className="surface-card" aria-label="Catalogo de areas">
-        <form
-          className="table-toolbar"
-          role="search"
-          aria-label="Filtros de areas"
-          autoComplete="off"
-          onSubmit={handleFilterSubmit}
-        >
-          <div className="filter-group">
-            <div className="toolbar-field">
-              <label className="form-label" htmlFor="area-search">
-                Buscar
-              </label>
-              <input
-                id="area-search"
-                name="areaSearch"
-                className="input-control"
-                type="search"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Nombre o codigo del area…"
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </div>
-            <div className="toolbar-field">
-              <label className="form-label" htmlFor="area-active-filter">
-                Filtrar por estado
-              </label>
-              <select
-                id="area-active-filter"
-                name="areaActive"
-                className="select-control"
-                value={activeFilter}
-                onChange={(event) => {
-                  setActiveFilter(event.target.value as ActiveFilter)
-                  setPage(1)
-                }}
-              >
-                <option value="">Todas las areas</option>
-                <option value="true">Solo activas</option>
-                <option value="false">Solo inactivas</option>
-              </select>
-            </div>
-            <button type="submit" className="btn btn-primary btn-sm">
-              <Search size={14} aria-hidden="true" />
-              Aplicar filtros
-            </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
-              Limpiar
-            </button>
-          </div>
-          <span className="table-meta" role="status" aria-live="polite">
-            {loading ? 'Actualizando…' : `${COUNT_FORMATTER.format(pagination.total)} areas en total`}
-          </span>
-        </form>
+          <section className="surface-card" aria-label="Catálogo de áreas">
+            <form
+              className="table-toolbar"
+              role="search"
+              aria-label="Filtros de áreas"
+              autoComplete="off"
+              noValidate
+              onSubmit={handleFilterSubmit}
+            >
+              <div className="filter-group">
+                <div className="toolbar-field">
+                  <label className="form-label" htmlFor="area-search">
+                    Buscar
+                  </label>
+                  <input
+                    id="area-search"
+                    name="areaSearch"
+                    className="input-control"
+                    type="search"
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    placeholder="Nombre o código del área…"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+                <div className="toolbar-field">
+                  <label className="form-label" htmlFor="area-active-filter">
+                    Filtrar por estado
+                  </label>
+                  <select
+                    id="area-active-filter"
+                    name="areaActive"
+                    className="select-control"
+                    value={activeFilter}
+                    onChange={(event) => {
+                      setActiveFilter(event.target.value as ActiveFilter)
+                      setPage(1)
+                    }}
+                  >
+                    <option value="">Todas las áreas</option>
+                    <option value="true">Solo activas</option>
+                    <option value="false">Solo inactivas</option>
+                  </select>
+                </div>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                  Limpiar
+                </button>
+              </div>
+              <span className="table-meta" role="status" aria-live="polite">
+                {loading
+                  ? 'Actualizando…'
+                  : `${formatCount(pagination.total, 'área', 'áreas')} en total`}
+              </span>
+            </form>
 
-        <div className="table-wrapper">
-          <table className="data-table" aria-busy={loading}>
-            <thead>
-              <tr>
-                <th scope="col">Area</th>
-                <th scope="col">Descripcion</th>
-                <th scope="col">Zona horaria</th>
-                <th scope="col">Estado</th>
-                <th scope="col">Actualizada</th>
-                <th scope="col" className="align-right">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <TableMessage
-                  colSpan={6}
-                  title="Cargando areas protegidas…"
-                  description={COLD_START_HINT}
-                />
-              ) : areas.length === 0 ? (
-                <TableMessage
-                  colSpan={6}
-                  title={hasActiveFilters ? 'Sin areas que coincidan' : 'Sin areas registradas'}
-                  description={
-                    hasActiveFilters
-                      ? 'Ajusta o limpia los filtros para ver todo el catalogo.'
-                      : isAdmin
-                        ? 'Crea la primera area protegida y define su zona horaria.'
-                        : 'Solicita a un administrador que cree la primera area protegida.'
-                  }
-                >
-                  {hasActiveFilters ? (
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={clearFilters}
-                    >
-                      Limpiar filtros
-                    </button>
-                  ) : isAdmin ? (
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      onClick={() => setModal({ mode: 'create' })}
-                    >
-                      <Plus size={14} aria-hidden="true" />
-                      Crear area
-                    </button>
-                  ) : null}
-                </TableMessage>
-              ) : (
-                areas.map((area) => (
-                  <tr key={area.id}>
-                    <td>
-                      <div className="cell-stack">
-                        <span className="cell-primary">{area.name}</span>
-                        <span className="mono-code" translate="no">
-                          {area.code}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="cell-secondary">
-                      {area.description ?? 'Sin descripcion'}
-                    </td>
-                    <td className="mono-text" translate="no">
-                      {area.timezone}
-                    </td>
-                    <td>
-                      <StatusBadge variant={area.isActive ? 'success' : 'neutral'}>
-                        {area.isActive ? 'Activa' : 'Inactiva'}
-                      </StatusBadge>
-                    </td>
-                    <td className="cell-secondary">{formatDateTime(area.updatedAt)}</td>
-                    <td>
-                      <div className="row-actions">
-                        {isAdmin ? (
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => setModal({ mode: 'edit', area })}
-                            aria-label={`Editar area ${area.name}`}
-                          >
-                            <Pencil size={14} aria-hidden="true" />
-                            Editar
-                          </button>
-                        ) : (
-                          <span className="cell-secondary">Solo lectura</span>
-                        )}
-                      </div>
-                    </td>
+            <div className="table-wrapper">
+              <table className="data-table responsive-table" aria-busy={loading}>
+                <thead>
+                  <tr>
+                    <th scope="col">Área</th>
+                    <th scope="col">Descripción</th>
+                    <th scope="col">Zona horaria</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Actualizada</th>
+                    <th scope="col" className="align-right">
+                      Acciones
+                    </th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <TableMessage
+                      colSpan={6}
+                      title="Cargando áreas protegidas…"
+                      description={COLD_START_HINT}
+                    />
+                  ) : areas.length === 0 ? (
+                    <TableMessage
+                      colSpan={6}
+                      title={hasActiveFilters ? 'Sin áreas que coincidan' : 'Sin áreas registradas'}
+                      description={
+                        hasActiveFilters
+                          ? 'Ajusta o limpia los filtros para ver todo el catálogo.'
+                          : isAdmin
+                            ? 'Crea la primera área protegida y define su zona horaria.'
+                            : 'Solicita a un administrador que cree la primera área protegida.'
+                      }
+                    >
+                      {hasActiveFilters ? (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={clearFilters}
+                        >
+                          Limpiar filtros
+                        </button>
+                      ) : isAdmin ? (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => setModal({ mode: 'create' })}
+                        >
+                          <Plus size={14} aria-hidden="true" />
+                          Crear área
+                        </button>
+                      ) : null}
+                    </TableMessage>
+                  ) : (
+                    areas.map((area) => (
+                      <tr key={area.id}>
+                        <td data-label="Área">
+                          <div className="cell-stack">
+                            <span className="cell-primary">{area.name}</span>
+                            <span className="mono-code" translate="no">
+                              {area.code}
+                            </span>
+                          </div>
+                        </td>
+                        <td data-label="Descripción" className="cell-secondary">
+                          {area.description ?? 'Sin descripción'}
+                        </td>
+                        <td data-label="Zona horaria" className="mono-text" translate="no">
+                          {area.timezone}
+                        </td>
+                        <td data-label="Estado">
+                          <StatusBadge variant={area.isActive ? 'success' : 'neutral'}>
+                            {area.isActive ? 'Activa' : 'Inactiva'}
+                          </StatusBadge>
+                        </td>
+                        <td data-label="Actualizada" className="cell-secondary">
+                          {formatDateTime(area.updatedAt)}
+                        </td>
+                        <td data-label="Acciones">
+                          <div className="row-actions">
+                            {isAdmin ? (
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => setModal({ mode: 'edit', area })}
+                                aria-label={`Editar área ${area.name}`}
+                              >
+                                <Pencil size={14} aria-hidden="true" />
+                                Editar
+                              </button>
+                            ) : (
+                              <span className="cell-secondary">Solo lectura</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-        {!loading && areas.length > 0 ? (
-          <Pagination
-            page={pagination.page}
-            pageSize={pagination.pageSize}
-            total={pagination.total}
-            totalPages={pagination.totalPages}
-            onPageChange={setPage}
-          />
-        ) : null}
+            {!loading && areas.length > 0 ? (
+              <Pagination
+                page={pagination.page}
+                pageSize={pagination.pageSize}
+                total={pagination.total}
+                totalPages={pagination.totalPages}
+                onPageChange={setPage}
+              />
+            ) : null}
           </section>
         </div>
       ) : null}
@@ -430,24 +442,38 @@ function AreaFormModal({ area, onClose, onSaved }: AreaFormModalProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!area && !code.trim()) {
-      setFormError('El codigo del area es obligatorio.')
+    const trimmedCode = code.trim()
+    const trimmedName = name.trim()
+    const trimmedTimezone = timezone.trim()
+
+    if (!area && !trimmedCode) {
+      setFormError('El código del área es obligatorio.')
       return
     }
-    if (!name.trim()) {
-      setFormError('El nombre del area es obligatorio.')
+    if (!area && !isValidAreaCode(trimmedCode)) {
+      setFormError(
+        'El código del área debe incluir letras y solo usar letras, números, guiones o guion bajo.',
+      )
       return
     }
-    if (!timezone.trim()) {
+    if (!trimmedName) {
+      setFormError('El nombre del área es obligatorio.')
+      return
+    }
+    if (!hasLetters(trimmedName)) {
+      setFormError('El nombre del área debe contener al menos una letra.')
+      return
+    }
+    if (!trimmedTimezone) {
       setFormError('La zona horaria IANA es obligatoria, por ejemplo America/Tijuana.')
       return
     }
 
     try {
-      new Intl.DateTimeFormat('es-MX', { timeZone: timezone.trim() })
+      new Intl.DateTimeFormat('es-MX', { timeZone: trimmedTimezone })
     } catch {
       setFormError(
-        'La zona horaria no es valida. Usa un identificador IANA, por ejemplo America/Tijuana.',
+        'La zona horaria no es válida. Usa un identificador IANA, por ejemplo America/Tijuana.',
       )
       return
     }
@@ -458,46 +484,46 @@ function AreaFormModal({ area, onClose, onSaved }: AreaFormModalProps) {
     try {
       if (area) {
         await api.updateArea(area.id, {
-          name: name.trim(),
+          name: trimmedName,
           description: description.trim() || null,
-          timezone: timezone.trim(),
+          timezone: trimmedTimezone,
           isActive,
         })
-        onSaved('Area actualizada correctamente.')
+        onSaved('Área actualizada correctamente.')
       } else {
         await api.createArea({
-          code: code.trim().toUpperCase(),
-          name: name.trim(),
+          code: trimmedCode.toUpperCase(),
+          name: trimmedName,
           description: description.trim() || null,
-          timezone: timezone.trim(),
+          timezone: trimmedTimezone,
           isActive,
         })
-        onSaved('Area creada correctamente.')
+        onSaved('Área creada correctamente.')
       }
     } catch (err) {
-      setFormError(getErrorMessage(err, 'No se pudo guardar el area.'))
+      setFormError(getErrorMessage(err, 'No se pudo guardar el área.'))
       setSubmitting(false)
     }
   }
 
   return (
     <Modal
-      title={area ? 'Editar area' : 'Nueva area'}
+      title={area ? 'Editar área' : 'Nueva área'}
       description={
         area
-          ? 'El codigo es inmutable porque los controladores lo usan como referencia. Puedes ajustar el nombre, la zona horaria y el estado.'
-          : 'El codigo identifica el area en la configuracion de los controladores. Usa un valor corto y estable.'
+          ? 'El código es inmutable porque los controladores lo usan como referencia. Puedes ajustar el nombre, la zona horaria y el estado.'
+          : 'El código identifica el área en la configuración de los controladores. Usa un valor corto y estable.'
       }
       onClose={onClose}
     >
-      <form autoComplete="off" onSubmit={(event) => void handleSubmit(event)}>
+      <form autoComplete="off" noValidate onSubmit={(event) => void handleSubmit(event)}>
         <div className="modal-body">
           {formError ? <NoticeBanner variant="error">{formError}</NoticeBanner> : null}
 
           {area ? (
             <div className="detail-grid">
               <div className="detail-item">
-                <div className="detail-label">Codigo del area</div>
+                <div className="detail-label">Código del área</div>
                 <div className="detail-value mono-text" translate="no">
                   {area.code}
                 </div>
@@ -509,7 +535,7 @@ function AreaFormModal({ area, onClose, onSaved }: AreaFormModalProps) {
             {!area ? (
               <div className="form-field">
                 <label className="form-label" htmlFor="area-form-code">
-                  Codigo del area
+                  Código del área
                 </label>
                 <input
                   id="area-form-code"
@@ -525,14 +551,14 @@ function AreaFormModal({ area, onClose, onSaved }: AreaFormModalProps) {
                   required
                 />
                 <span className="form-hint" id="area-form-code-hint">
-                  Se guarda en mayusculas y no se puede cambiar.
+                  Se guarda en mayúsculas y no se puede cambiar.
                 </span>
               </div>
             ) : null}
 
             <div className="form-field">
               <label className="form-label" htmlFor="area-form-name">
-                Nombre del area
+                Nombre del área
               </label>
               <input
                 id="area-form-name"
@@ -570,7 +596,7 @@ function AreaFormModal({ area, onClose, onSaved }: AreaFormModalProps) {
 
             <div className="form-field form-field-full">
               <label className="form-label" htmlFor="area-form-description">
-                Descripcion
+                Descripción
               </label>
               <textarea
                 id="area-form-description"
@@ -580,7 +606,7 @@ function AreaFormModal({ area, onClose, onSaved }: AreaFormModalProps) {
                 onChange={(event) => setDescription(event.target.value)}
                 maxLength={1000}
                 rows={3}
-                placeholder="Que protege esta area y quien deberia tener acceso…"
+                placeholder="Qué protege esta área y quién debería tener acceso…"
                 autoComplete="off"
               />
             </div>
@@ -594,7 +620,7 @@ function AreaFormModal({ area, onClose, onSaved }: AreaFormModalProps) {
                   checked={isActive}
                   onChange={(event) => setIsActive(event.target.checked)}
                 />
-                Area activa y disponible para permisos
+                Área activa y disponible para permisos
               </label>
             </div>
           </div>
@@ -610,7 +636,7 @@ function AreaFormModal({ area, onClose, onSaved }: AreaFormModalProps) {
             disabled={submitting}
             aria-busy={submitting}
           >
-            {submitting ? 'Guardando…' : 'Guardar area'}
+            {submitting ? 'Guardando…' : 'Guardar área'}
           </button>
         </div>
       </form>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Pencil, Plus, Search } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
 import type { EmployeeDto, EmployeeStatus, PaginationMeta } from '@scaccess/shared'
 import { Modal } from '../components/ui/Modal'
 import { NoticeBanner } from '../components/ui/NoticeBanner'
@@ -8,8 +8,15 @@ import { StatusBadge } from '../components/ui/StatusBadge'
 import { COLD_START_HINT, TableMessage } from '../components/ui/TableMessage'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
-import { EMPLOYEE_STATUS_LABELS, formatDateTime } from '../lib/formatters'
-import { getErrorMessage } from '../lib/validation'
+import { EMPLOYEE_STATUS_LABELS, formatCount, formatDateTime } from '../lib/formatters'
+import {
+  getErrorMessage,
+  hasLetters,
+  isValidEmail,
+  isValidEmployeeCode,
+  isValidPersonName,
+  suggestNextEmployeeCode,
+} from '../lib/validation'
 
 const PAGE_SIZE = 20
 const EMPLOYEE_STATUSES: EmployeeStatus[] = ['active', 'inactive', 'suspended']
@@ -20,8 +27,6 @@ const EMPTY_PAGINATION: PaginationMeta = {
   total: 0,
   totalPages: 0,
 }
-
-const COUNT_FORMATTER = new Intl.NumberFormat('es-MX')
 
 type EmployeeModalState = { mode: 'create' } | { mode: 'edit'; employee: EmployeeDto } | null
 
@@ -63,7 +68,7 @@ export function EmployeesPage() {
       setError(
         getErrorMessage(
           err,
-          'No se pudo cargar el directorio de empleados. Revisa tu conexion y vuelve a intentarlo.',
+          'No se pudo cargar el directorio de empleados. Revisa tu conexión y vuelve a intentarlo.',
         ),
       )
     } finally {
@@ -75,6 +80,21 @@ export function EmployeesPage() {
     void loadEmployees()
   }, [loadEmployees])
 
+  useEffect(() => {
+    const trimmedSearch = searchInput.trim()
+    const trimmedDepartment = departmentInput.trim()
+    if (trimmedSearch === appliedSearch && trimmedDepartment === appliedDepartment) {
+      return
+    }
+    const timer = setTimeout(() => {
+      setPage(1)
+      setAppliedSearch(trimmedSearch)
+      setAppliedDepartment(trimmedDepartment)
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [searchInput, departmentInput, appliedSearch, appliedDepartment])
+
   const departmentOptions = useMemo(
     () =>
       Array.from(
@@ -82,6 +102,8 @@ export function EmployeesPage() {
       ).toSorted((a, b) => a.localeCompare(b)),
     [employees],
   )
+
+  const suggestedEmployeeCode = useMemo(() => suggestNextEmployeeCode(employees), [employees])
 
   function handleFilterSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -173,6 +195,7 @@ export function EmployeesPage() {
           role="search"
           aria-label="Filtros de empleados"
           autoComplete="off"
+          noValidate
           onSubmit={handleFilterSubmit}
         >
           <div className="filter-group">
@@ -187,7 +210,7 @@ export function EmployeesPage() {
                 type="search"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Nombre, codigo o correo…"
+                placeholder="Nombre, código o correo…"
                 autoComplete="off"
                 spellCheck={false}
               />
@@ -235,10 +258,6 @@ export function EmployeesPage() {
                 ))}
               </datalist>
             </div>
-            <button type="submit" className="btn btn-primary btn-sm">
-              <Search size={14} aria-hidden="true" />
-              Aplicar filtros
-            </button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
               Limpiar
             </button>
@@ -246,16 +265,16 @@ export function EmployeesPage() {
           <span className="table-meta" role="status" aria-live="polite">
             {loading
               ? 'Actualizando…'
-              : `${COUNT_FORMATTER.format(pagination.total)} empleados en total`}
+              : `${formatCount(pagination.total, 'empleado', 'empleados')} en total`}
           </span>
         </form>
 
         <div className="table-wrapper">
-          <table className="data-table" aria-busy={loading}>
+          <table className="data-table responsive-table" aria-busy={loading}>
             <thead>
               <tr>
                 <th scope="col">Empleado</th>
-                <th scope="col">Contacto y adscripcion</th>
+                <th scope="col">Contacto y adscripción</th>
                 <th scope="col">Estado</th>
                 <th scope="col">Actualizado</th>
                 <th scope="col" className="align-right">
@@ -304,7 +323,7 @@ export function EmployeesPage() {
               ) : (
                 employees.map((employee) => (
                   <tr key={employee.id}>
-                    <td>
+                    <td data-label="Empleado">
                       <div className="cell-stack">
                         <span className="cell-primary">
                           {employee.firstName} {employee.lastName}
@@ -314,7 +333,7 @@ export function EmployeesPage() {
                         </span>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Contacto y adscripción">
                       <div className="cell-stack">
                         <span>{employee.email ?? 'Sin correo registrado'}</span>
                         <span className="cell-secondary">
@@ -323,13 +342,15 @@ export function EmployeesPage() {
                         </span>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Estado">
                       <StatusBadge variant={employeeBadgeVariant(employee.status)}>
                         {EMPLOYEE_STATUS_LABELS[employee.status]}
                       </StatusBadge>
                     </td>
-                    <td className="cell-secondary">{formatDateTime(employee.updatedAt)}</td>
-                    <td>
+                    <td data-label="Actualizado" className="cell-secondary">
+                      {formatDateTime(employee.updatedAt)}
+                    </td>
+                    <td data-label="Acciones">
                       <div className="row-actions">
                         {canWriteCatalog ? (
                           <button
@@ -367,6 +388,7 @@ export function EmployeesPage() {
       {modal ? (
         <EmployeeFormModal
           employee={modal.mode === 'edit' ? modal.employee : null}
+          suggestedCode={suggestedEmployeeCode}
           onClose={() => setModal(null)}
           onSaved={handleSaved}
         />
@@ -377,12 +399,18 @@ export function EmployeesPage() {
 
 interface EmployeeFormModalProps {
   employee: EmployeeDto | null
+  suggestedCode: string
   onClose: () => void
   onSaved: (message: string) => void
 }
 
-function EmployeeFormModal({ employee, onClose, onSaved }: EmployeeFormModalProps) {
-  const [employeeCode, setEmployeeCode] = useState(employee?.employeeCode ?? '')
+function EmployeeFormModal({
+  employee,
+  suggestedCode,
+  onClose,
+  onSaved,
+}: EmployeeFormModalProps) {
+  const [employeeCode, setEmployeeCode] = useState(employee?.employeeCode ?? suggestedCode)
   const [firstName, setFirstName] = useState(employee?.firstName ?? '')
   const [lastName, setLastName] = useState(employee?.lastName ?? '')
   const [email, setEmail] = useState(employee?.email ?? '')
@@ -395,18 +423,47 @@ function EmployeeFormModal({ employee, onClose, onSaved }: EmployeeFormModalProp
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!employeeCode.trim() || !firstName.trim() || !lastName.trim()) {
-      setFormError('Completa el codigo, el nombre y los apellidos.')
+    const trimmedCode = employeeCode.trim()
+    const trimmedFirst = firstName.trim()
+    const trimmedLast = lastName.trim()
+    const trimmedEmail = email.trim()
+    const trimmedDept = department.trim()
+    const trimmedPos = position.trim()
+
+    if (!trimmedCode || !trimmedFirst || !trimmedLast) {
+      setFormError('Completa el código, el nombre y los apellidos.')
+      return
+    }
+    if (!isValidEmployeeCode(trimmedCode)) {
+      setFormError(
+        'El código de empleado debe incluir letras y solo usar letras, números, guiones o guion bajo (ej. EMP-001).',
+      )
+      return
+    }
+    if (!isValidPersonName(trimmedFirst) || !isValidPersonName(trimmedLast)) {
+      setFormError('El nombre y los apellidos solo pueden contener letras y espacios (sin números).')
+      return
+    }
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      setFormError('Ingresa un correo electrónico válido.')
+      return
+    }
+    if (trimmedDept && !hasLetters(trimmedDept)) {
+      setFormError('El departamento debe contener al menos una letra.')
+      return
+    }
+    if (trimmedPos && !hasLetters(trimmedPos)) {
+      setFormError('El puesto debe contener al menos una letra.')
       return
     }
 
     const payload = {
-      employeeCode: employeeCode.trim(),
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: email.trim() || null,
-      department: department.trim() || null,
-      position: position.trim() || null,
+      employeeCode: trimmedCode,
+      firstName: trimmedFirst,
+      lastName: trimmedLast,
+      email: trimmedEmail || null,
+      department: trimmedDept || null,
+      position: trimmedPos || null,
       status,
     }
 
@@ -432,26 +489,24 @@ function EmployeeFormModal({ employee, onClose, onSaved }: EmployeeFormModalProp
       title={employee ? 'Editar empleado' : 'Nuevo empleado'}
       description={
         employee
-          ? 'Los cambios aplican de inmediato a la validacion de accesos y a la proxima sincronizacion de los controladores.'
-          : 'Registra a la persona con su codigo institucional. Podras vincular una tarjeta RFID despues.'
+          ? 'Los cambios aplican de inmediato a la validación de accesos y a la próxima sincronización de los controladores.'
+          : 'Registra a la persona con su código institucional. Podrás vincular una tarjeta RFID después.'
       }
       onClose={onClose}
     >
-      <form autoComplete="off" onSubmit={(event) => void handleSubmit(event)}>
+      <form autoComplete="off" noValidate onSubmit={(event) => void handleSubmit(event)}>
         <div className="modal-body">
-          {formError ? (
-            <NoticeBanner variant="error">{formError}</NoticeBanner>
-          ) : null}
+          {formError ? <NoticeBanner variant="error">{formError}</NoticeBanner> : null}
 
           <div className="form-grid">
             <div className="form-field">
               <label className="form-label" htmlFor="employee-form-code">
-                Codigo de empleado
+                Código de empleado
               </label>
               <input
                 id="employee-form-code"
                 name="employeeCode"
-                className="input-control"
+                className="input-control mono-text"
                 value={employeeCode}
                 onChange={(event) => setEmployeeCode(event.target.value)}
                 maxLength={32}
@@ -461,7 +516,9 @@ function EmployeeFormModal({ employee, onClose, onSaved }: EmployeeFormModalProp
                 required
               />
               <span className="form-hint" id="employee-form-code-hint">
-                Identificador interno unico, por ejemplo EMP-001.
+                {employee
+                  ? 'Identificador interno único, por ejemplo EMP-001.'
+                  : `Sugerencia consecutiva (${suggestedCode}); puedes editarlo si usas otro código institucional.`}
               </span>
             </div>
             <div className="form-field">
@@ -514,7 +571,7 @@ function EmployeeFormModal({ employee, onClose, onSaved }: EmployeeFormModalProp
             </div>
             <div className="form-field">
               <label className="form-label" htmlFor="employee-form-email">
-                Correo electronico
+                Correo electrónico
               </label>
               <input
                 id="employee-form-email"
