@@ -8,7 +8,8 @@
     "packages/*",
     "apps/api",
     "apps/admin",
-    "apps/mobile"
+    "apps/mobile",
+    "landing"
   ],
   "engines": {
     "node": ">=22.12.0"
@@ -16,9 +17,11 @@
   "scripts": {
     "dev": "npm run dev --workspace @scaccess/api",
     "dev:admin": "npm run dev --workspace @scaccess/admin",
+    "dev:landing": "npm run dev --workspace @scaccess/landing",
     "start": "npm run start --workspace @scaccess/api",
     "build": "npm run build --workspaces --if-present",
     "build:admin": "npm run build --workspace @scaccess/shared && npm run build --workspace @scaccess/admin",
+    "build:landing": "npm run build --workspace @scaccess/landing",
     "pretest": "npm run build --workspace @scaccess/shared",
     "test": "npm run test --workspaces --if-present",
     "test:watch": "npm run test:watch --workspace @scaccess/api",
