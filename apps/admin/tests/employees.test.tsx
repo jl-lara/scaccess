@@ -35,7 +35,16 @@ describe('EmployeesPage', () => {
     expect(within(table).getByText('EMP-001')).toBeInTheDocument()
     expect(within(table).getByText('Activo')).toBeInTheDocument()
     expect(within(table).getByText('Inactivo')).toBeInTheDocument()
+    expect(screen.getByText('2 empleados en total')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Nuevo empleado' })).toBeInTheDocument()
+  })
+
+  it('uses singular grammar when only one employee matches (H11)', async () => {
+    vi.mocked(api.listEmployees).mockResolvedValue(paginated([EMPLOYEE_ANA]))
+    renderWithAuth(<EmployeesPage />, makeAuth(['operator']))
+
+    await screen.findByRole('table')
+    expect(screen.getByText('1 empleado en total')).toBeInTheDocument()
   })
 
   it('hides write actions for read-only roles', async () => {
@@ -69,8 +78,10 @@ describe('EmployeesPage', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Nuevo empleado' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    fireEvent.change(within(dialog).getByLabelText('Codigo de empleado'), {
-      target: { value: 'EMP-003' },
+    const codeInput = within(dialog).getByLabelText('Código de empleado')
+    expect(codeInput).toHaveValue('EMP-003')
+    fireEvent.change(codeInput, {
+      target: { value: 'EMP-004' },
     })
     fireEvent.change(within(dialog).getByLabelText('Nombre(s)'), {
       target: { value: 'Luis' },
@@ -78,30 +89,49 @@ describe('EmployeesPage', () => {
     fireEvent.change(within(dialog).getByLabelText('Apellidos'), {
       target: { value: 'Mendoza' },
     })
-    fireEvent.change(within(dialog).getByLabelText('Correo electronico'), {
+    fireEvent.change(within(dialog).getByLabelText('Correo electrónico'), {
       target: { value: 'luis.mendoza@scaccess.local' },
     })
     fireEvent.change(within(dialog).getByLabelText('Departamento'), {
       target: { value: 'Mantenimiento' },
     })
     fireEvent.change(within(dialog).getByLabelText('Puesto'), {
-      target: { value: 'Tecnico' },
+      target: { value: 'Técnico' },
     })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar empleado' }))
 
     await waitFor(() => {
       expect(api.createEmployee).toHaveBeenCalledWith(
         expect.objectContaining({
-          employeeCode: 'EMP-003',
+          employeeCode: 'EMP-004',
           firstName: 'Luis',
           lastName: 'Mendoza',
           department: 'Mantenimiento',
-          position: 'Tecnico',
+          position: 'Técnico',
           status: 'active',
         }),
       )
     })
     expect(await screen.findByText('Empleado registrado correctamente.')).toBeInTheDocument()
+  })
+
+  it('rejects numeric-only employee names and positions in the creation modal (H4)', async () => {
+    renderWithAuth(<EmployeesPage />, makeAuth(['operator']))
+
+    await screen.findByRole('table')
+    fireEvent.click(screen.getByRole('button', { name: 'Nuevo empleado' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Nuevo empleado' })
+    fireEvent.change(within(dialog).getByLabelText('Nombre(s)'), {
+      target: { value: '12345' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Apellidos'), {
+      target: { value: '67890' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar empleado' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/letras/i)
+    expect(api.createEmployee).not.toHaveBeenCalled()
   })
 
   it('edits an existing employee', async () => {

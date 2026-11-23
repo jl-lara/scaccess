@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { CheckCircle2, Eye, FileDown, RefreshCw, Search, XCircle } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { CheckCircle2, ChevronDown, Eye, FileDown, RefreshCw, XCircle } from 'lucide-react'
 import type {
   AccessDecision,
   AccessDeviceDto,
@@ -15,7 +15,12 @@ import { Pagination } from '../components/ui/Pagination'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { COLD_START_HINT, TableMessage } from '../components/ui/TableMessage'
 import { api } from '../lib/api'
-import { DECISION_LABELS, REASON_LABELS, formatDateTimeWithSeconds } from '../lib/formatters'
+import {
+  DECISION_LABELS,
+  REASON_LABELS,
+  formatCount,
+  formatDateTimeWithSeconds,
+} from '../lib/formatters'
 import { downloadAccessEventsPdf, type AccessEventReportRow } from '../lib/pdfReport'
 import { usePermissions } from '../lib/permissions'
 import {
@@ -24,6 +29,7 @@ import {
   isValidCardUid,
   normalizeCardUid,
   toIsoDateTime,
+  toLocalDateTimeInputValue,
 } from '../lib/validation'
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100] as const
@@ -84,12 +90,12 @@ function getReceivedLagSeconds(occurredAt: string, receivedAt: string): number |
 function formatReceivedLag(occurredAt: string, receivedAt: string): string {
   const seconds = getReceivedLagSeconds(occurredAt, receivedAt)
   if (seconds === null) {
-    return 'Sin calculo'
+    return 'Sin cálculo'
   }
   if (seconds === 0) {
     return 'Sin diferencia'
   }
-  const direction = seconds > 0 ? 'despues' : 'antes'
+  const direction = seconds > 0 ? 'después' : 'antes'
   const absolute = Math.abs(seconds)
   if (absolute < 60) {
     return `${absolute} s ${direction}`
@@ -118,6 +124,43 @@ function formatReceivedLagShort(occurredAt: string, receivedAt: string): string 
   return `${sign}${Math.round(minutes / 60)} h`
 }
 
+function validateEventFilters(candidate: EventFilters): { error: string | null; normalizedUid: string } {
+  const normalizedUid = normalizeCardUid(candidate.cardUid)
+  if (normalizedUid && !isValidCardUid(normalizedUid)) {
+    return {
+      error: 'El UID debe ser hexadecimal par de 8 a 32 caracteres.',
+      normalizedUid,
+    }
+  }
+
+  const nowMs = Date.now() + 60_000
+  const fromIso = toIsoDateTime(candidate.from)
+  const toIso = toIsoDateTime(candidate.to)
+
+  if (fromIso && new Date(fromIso).getTime() > nowMs) {
+    return {
+      error: 'No puedes buscar eventos en fechas futuras.',
+      normalizedUid,
+    }
+  }
+
+  if (toIso && new Date(toIso).getTime() > nowMs) {
+    return {
+      error: 'No puedes buscar eventos en fechas futuras.',
+      normalizedUid,
+    }
+  }
+
+  if (fromIso && toIso && new Date(toIso).getTime() < new Date(fromIso).getTime()) {
+    return {
+      error: 'La fecha de fin no puede ser anterior a la fecha de inicio.',
+      normalizedUid,
+    }
+  }
+
+  return { error: null, normalizedUid }
+}
+
 export function AccessEventsPage() {
   const { canViewCatalogs, canExportReports } = usePermissions()
   const [events, setEvents] = useState<AccessEventDto[]>([])
@@ -137,6 +180,8 @@ export function AccessEventsPage() {
   const [detailTarget, setDetailTarget] = useState<AccessEventDto | null>(null)
   const [exportNotice, setExportNotice] = useState<string | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
+
+  const maxDateTimeLocal = toLocalDateTimeInputValue()
 
   useEffect(() => {
     let active = true
@@ -162,7 +207,7 @@ export function AccessEventsPage() {
           setSupportError(
             getErrorMessage(
               err,
-              'No se pudieron cargar los catalogos auxiliares. Los filtros mostraran identificadores.',
+              'No se pudieron cargar los catálogos auxiliares. Los filtros mostrarán identificadores.',
             ),
           )
         }
@@ -195,7 +240,7 @@ export function AccessEventsPage() {
       setEvents(response.data)
       setPagination(response.pagination)
     } catch (err) {
-      setError(getErrorMessage(err, 'No se pudo consultar la bitacora de accesos.'))
+      setError(getErrorMessage(err, 'No se pudo consultar la bitácora de accesos.'))
     } finally {
       setLoading(false)
     }
@@ -205,6 +250,26 @@ export function AccessEventsPage() {
     void loadEvents()
   }, [loadEvents])
 
+  // Debounce free-text UID filter while keeping instant feedback for selects and valid dates.
+  useEffect(() => {
+    const normalizedDraftUid = normalizeCardUid(draftFilters.cardUid)
+    if (normalizedDraftUid === appliedFilters.cardUid) {
+      return
+    }
+    const timer = setTimeout(() => {
+      const validation = validateEventFilters(draftFilters)
+      if (validation.error) {
+        setFilterError(validation.error)
+        return
+      }
+      setFilterError(null)
+      setPage(1)
+      setAppliedFilters({ ...draftFilters, cardUid: validation.normalizedUid })
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [draftFilters, appliedFilters.cardUid])
+
   const employeeById = useMemo(
     () => new Map(employees.map((employee) => [employee.id, employee])),
     [employees],
@@ -212,30 +277,33 @@ export function AccessEventsPage() {
   const areaById = useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas])
   const deviceById = useMemo(() => new Map(devices.map((device) => [device.id, device])), [devices])
 
-  function updateDraft<K extends keyof EventFilters>(field: K, value: EventFilters[K]) {
-    setDraftFilters((current) => ({ ...current, [field]: value }))
-  }
+  function applyInstantFilter<K extends keyof EventFilters>(field: K, value: EventFilters[K]) {
+    const nextFilters = { ...draftFilters, [field]: value }
+    setDraftFilters(nextFilters)
 
-  function handleFilterSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    const normalizedUid = normalizeCardUid(draftFilters.cardUid)
-    if (normalizedUid && !isValidCardUid(normalizedUid)) {
-      setFilterError('El UID debe ser hexadecimal par de 8 a 32 caracteres.')
-      return
-    }
-
-    const fromIso = toIsoDateTime(draftFilters.from)
-    const toIso = toIsoDateTime(draftFilters.to)
-
-    if (fromIso && toIso && new Date(toIso).getTime() < new Date(fromIso).getTime()) {
-      setFilterError('La fecha de fin no puede ser anterior a la fecha de inicio.')
+    const validation = validateEventFilters(nextFilters)
+    if (validation.error) {
+      setFilterError(validation.error)
       return
     }
 
     setFilterError(null)
     setPage(1)
-    setAppliedFilters({ ...draftFilters, cardUid: normalizedUid })
+    setAppliedFilters({ ...nextFilters, cardUid: validation.normalizedUid })
+  }
+
+  function handleFilterSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const validation = validateEventFilters(draftFilters)
+    if (validation.error) {
+      setFilterError(validation.error)
+      return
+    }
+
+    setFilterError(null)
+    setPage(1)
+    setAppliedFilters({ ...draftFilters, cardUid: validation.normalizedUid })
   }
 
   function clearFilters() {
@@ -243,6 +311,13 @@ export function AccessEventsPage() {
     setAppliedFilters(EMPTY_FILTERS)
     setFilterError(null)
     setPage(1)
+  }
+
+  function handleRowKeyDown(event: KeyboardEvent<HTMLTableRowElement>, target: AccessEventDto) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      setDetailTarget(target)
+    }
   }
 
   function handleExportPdf() {
@@ -266,7 +341,7 @@ export function AccessEventsPage() {
       if (appliedFilters.areaId) {
         const area = areaById.get(appliedFilters.areaId)
         filterSummary.push(
-          `Area: ${area ? `${area.name} (${area.code})` : appliedFilters.areaId}`,
+          `Área: ${area ? `${area.name} (${area.code})` : appliedFilters.areaId}`,
         )
       }
       if (appliedFilters.deviceId) {
@@ -306,7 +381,7 @@ export function AccessEventsPage() {
             ? `${employee.firstName} ${employee.lastName} (${employee.employeeCode})`
             : 'Tarjeta desconocida / sin empleado',
           cardUid: event.cardUid,
-          areaLabel: area ? `${area.name} (${area.code})` : 'Area no disponible',
+          areaLabel: area ? `${area.name} (${area.code})` : 'Área no disponible',
           deviceLabel: device
             ? `${device.name} (${device.deviceCode})`
             : `Controlador ${event.deviceId.slice(0, 8)}`,
@@ -334,9 +409,9 @@ export function AccessEventsPage() {
     <div className="page-stack">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Bitacora de accesos</h1>
+          <h1 className="page-title">Bitácora de accesos</h1>
           <p className="page-description">
-            Registro inmutable de lecturas RFID con hora del lector y recepcion en servidor.
+            Registro inmutable de lecturas RFID con hora del lector y recepción en servidor.
           </p>
         </div>
         <div className="header-actions-group">
@@ -348,7 +423,7 @@ export function AccessEventsPage() {
             aria-busy={loading}
           >
             <RefreshCw size={15} aria-hidden="true" />
-            <span>{loading ? 'Actualizando…' : 'Actualizar bitacora'}</span>
+            <span>{loading ? 'Actualizando…' : 'Actualizar bitácora'}</span>
           </button>
           {canExportReports ? (
             <button
@@ -407,7 +482,7 @@ export function AccessEventsPage() {
               className="btn btn-secondary btn-sm"
               onClick={() => setSupportReloadKey((current) => current + 1)}
             >
-              Reintentar catalogos
+              Reintentar catálogos
             </button>
           }
         >
@@ -441,8 +516,9 @@ export function AccessEventsPage() {
           className="event-filters"
           onSubmit={handleFilterSubmit}
           role="search"
-          aria-label="Filtros de la bitacora de accesos"
+          aria-label="Filtros de la bitácora de accesos"
           autoComplete="off"
+          noValidate
         >
           <div className="form-grid filter-grid">
             <div className="form-field">
@@ -455,7 +531,7 @@ export function AccessEventsPage() {
                 className="select-control"
                 value={draftFilters.decision}
                 onChange={(event) =>
-                  updateDraft('decision', event.target.value as AccessDecision | '')
+                  applyInstantFilter('decision', event.target.value as AccessDecision | '')
                 }
               >
                 <option value="">Todas las decisiones</option>
@@ -477,7 +553,7 @@ export function AccessEventsPage() {
                 className="select-control"
                 value={draftFilters.reasonCode}
                 onChange={(event) =>
-                  updateDraft('reasonCode', event.target.value as AccessReason | '')
+                  applyInstantFilter('reasonCode', event.target.value as AccessReason | '')
                 }
               >
                 <option value="">Todos los motivos</option>
@@ -491,16 +567,16 @@ export function AccessEventsPage() {
 
             <div className="form-field">
               <label className="form-label" htmlFor="event-area-filter">
-                Area
+                Área
               </label>
               <select
                 id="event-area-filter"
                 name="areaId"
                 className="select-control"
                 value={draftFilters.areaId}
-                onChange={(event) => updateDraft('areaId', event.target.value)}
+                onChange={(event) => applyInstantFilter('areaId', event.target.value)}
               >
-                <option value="">Todas las areas</option>
+                <option value="">Todas las áreas</option>
                 {areas.map((area) => (
                   <option key={area.id} value={area.id}>
                     {area.name} ({area.code})
@@ -520,7 +596,7 @@ export function AccessEventsPage() {
                     name="deviceId"
                     className="select-control"
                     value={draftFilters.deviceId}
-                    onChange={(event) => updateDraft('deviceId', event.target.value)}
+                    onChange={(event) => applyInstantFilter('deviceId', event.target.value)}
                   >
                     <option value="">Todos los controladores</option>
                     {devices.map((device) => (
@@ -540,7 +616,7 @@ export function AccessEventsPage() {
                     name="employeeId"
                     className="select-control"
                     value={draftFilters.employeeId}
-                    onChange={(event) => updateDraft('employeeId', event.target.value)}
+                    onChange={(event) => applyInstantFilter('employeeId', event.target.value)}
                   >
                     <option value="">Todos los empleados</option>
                     {employees.map((employee) => (
@@ -562,7 +638,9 @@ export function AccessEventsPage() {
                 name="cardUid"
                 className="input-control mono-text"
                 value={draftFilters.cardUid}
-                onChange={(event) => updateDraft('cardUid', event.target.value)}
+                onChange={(event) =>
+                  setDraftFilters((current) => ({ ...current, cardUid: event.target.value }))
+                }
                 placeholder="04A1B2C3D4E5F6"
                 maxLength={40}
                 autoComplete="off"
@@ -574,7 +652,7 @@ export function AccessEventsPage() {
                 }
               />
               <span className="form-hint" id="event-uid-filter-hint">
-                Hexadecimal de 8 a 32 caracteres. Se normaliza a mayusculas al aplicar el filtro.
+                Hexadecimal par de 8 a 32 caracteres. Se aplica automáticamente.
               </span>
             </div>
 
@@ -587,8 +665,9 @@ export function AccessEventsPage() {
                 name="from"
                 className="input-control"
                 type="datetime-local"
+                max={maxDateTimeLocal}
                 value={draftFilters.from}
-                onChange={(event) => updateDraft('from', event.target.value)}
+                onChange={(event) => applyInstantFilter('from', event.target.value)}
                 autoComplete="off"
               />
             </div>
@@ -602,8 +681,9 @@ export function AccessEventsPage() {
                 name="to"
                 className="input-control"
                 type="datetime-local"
+                max={maxDateTimeLocal}
                 value={draftFilters.to}
-                onChange={(event) => updateDraft('to', event.target.value)}
+                onChange={(event) => applyInstantFilter('to', event.target.value)}
                 autoComplete="off"
               />
             </div>
@@ -616,10 +696,6 @@ export function AccessEventsPage() {
           ) : null}
 
           <div className="filter-actions">
-            <button type="submit" className="btn btn-primary btn-sm">
-              <Search size={14} aria-hidden="true" />
-              Aplicar filtros
-            </button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
               Limpiar filtros
             </button>
@@ -628,11 +704,13 @@ export function AccessEventsPage() {
 
         <div className="table-toolbar">
           <span className="table-meta" role="status" aria-live="polite">
-            {loading ? 'Consultando bitacora…' : `${pagination.total} eventos en total`}
+            {loading
+              ? 'Consultando bitácora…'
+              : `${formatCount(pagination.total, 'evento', 'eventos')} en total`}
           </span>
           <div className="toolbar-field">
             <label className="form-label" htmlFor="event-page-size">
-              Filas por pagina
+              Filas por página
             </label>
             <select
               id="event-page-size"
@@ -655,7 +733,7 @@ export function AccessEventsPage() {
 
         <div className="table-wrapper">
           <table
-            className="data-table"
+            className="data-table responsive-table"
             aria-label="Eventos de acceso registrados"
             aria-busy={loading}
           >
@@ -663,12 +741,12 @@ export function AccessEventsPage() {
               <tr>
                 <th scope="col">Resultado</th>
                 <th scope="col">Empleado / Tarjeta</th>
-                <th scope="col">Area y controlador</th>
+                <th scope="col">Área y controlador</th>
                 <th scope="col">Motivo</th>
-                <th scope="col">Ocurrio (lector)</th>
+                <th scope="col">Ocurrió (lector)</th>
                 <th
                   scope="col"
-                  title="Hora de recepcion en el servidor. Puede ser posterior a la hora del lector si el controlador estaba sin conexion."
+                  title="Hora de recepción en el servidor. Puede ser posterior a la hora del lector si el controlador estaba sin conexión."
                 >
                   Recibido (servidor)
                 </th>
@@ -688,7 +766,7 @@ export function AccessEventsPage() {
                 <TableMessage
                   colSpan={7}
                   title="Sin eventos que coincidan"
-                  description="Ajusta los filtros para ampliar el rango de busqueda."
+                  description="Ajusta los filtros para ampliar el rango de búsqueda."
                 />
               ) : (
                 events.map((event) => {
@@ -700,8 +778,14 @@ export function AccessEventsPage() {
                   const receivedLag = formatReceivedLagShort(event.occurredAt, event.receivedAt)
 
                   return (
-                    <tr key={event.id}>
-                      <td>
+                    <tr
+                      key={event.id}
+                      className="is-clickable"
+                      tabIndex={0}
+                      onClick={() => setDetailTarget(event)}
+                      onKeyDown={(keyEvent) => handleRowKeyDown(keyEvent, event)}
+                    >
+                      <td data-label="Resultado">
                         <StatusBadge variant={event.decision === 'granted' ? 'success' : 'danger'}>
                           {event.decision === 'granted' ? (
                             <CheckCircle2 size={13} aria-hidden="true" />
@@ -711,7 +795,7 @@ export function AccessEventsPage() {
                           <span>{DECISION_LABELS[event.decision]}</span>
                         </StatusBadge>
                       </td>
-                      <td>
+                      <td data-label="Empleado / Tarjeta">
                         <div className="cell-stack">
                           <span className="cell-primary">
                             {employee
@@ -730,9 +814,9 @@ export function AccessEventsPage() {
                           ) : null}
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Área y controlador">
                         <div className="cell-stack">
-                          <span>{area?.name ?? 'Area no disponible'}</span>
+                          <span>{area?.name ?? 'Área no disponible'}</span>
                           <span className="cell-secondary">
                             {device ? (
                               <>
@@ -743,25 +827,20 @@ export function AccessEventsPage() {
                                 )
                               </>
                             ) : (
-                              <>
-                                Controlador{' '}
-                                <span className="mono-text" translate="no">
-                                  {event.deviceId.slice(0, 8)}
-                                </span>
-                              </>
+                              'Controlador asignado al área'
                             )}
                           </span>
                         </div>
                       </td>
-                      <td className="cell-secondary">
+                      <td data-label="Motivo" className="cell-secondary">
                         {REASON_LABELS[event.reasonCode] ?? event.reasonCode}
                       </td>
-                      <td>
+                      <td data-label="Ocurrió (lector)">
                         <time className="mono-text" dateTime={event.occurredAt}>
                           {formatDateTimeWithSeconds(event.occurredAt)}
                         </time>
                       </td>
-                      <td>
+                      <td data-label="Recibido (servidor)">
                         <time className="mono-text" dateTime={event.receivedAt}>
                           {formatDateTimeWithSeconds(event.receivedAt)}
                         </time>
@@ -769,18 +848,21 @@ export function AccessEventsPage() {
                           <span
                             className="cell-secondary mono-text"
                             style={{ display: 'block' }}
-                            title={`Recepcion en el servidor: ${formatReceivedLag(event.occurredAt, event.receivedAt)} de la hora del lector.`}
+                            title={`Recepción en el servidor: ${formatReceivedLag(event.occurredAt, event.receivedAt)} de la hora del lector.`}
                           >
                             {receivedLag}
                           </span>
                         ) : null}
                       </td>
-                      <td>
+                      <td data-label="Acciones">
                         <div className="row-actions">
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"
-                            onClick={() => setDetailTarget(event)}
+                            onClick={(clickEvent) => {
+                              clickEvent.stopPropagation()
+                              setDetailTarget(event)
+                            }}
                             aria-label={`Ver detalle del evento de ${employee ? `${employee.firstName} ${employee.lastName}` : 'tarjeta desconocida'} del ${formatDateTimeWithSeconds(event.occurredAt)}`}
                           >
                             <Eye size={14} aria-hidden="true" />
@@ -856,7 +938,7 @@ function EventDetailModal({
           setError(
             getErrorMessage(
               err,
-              'No se pudo actualizar el detalle. Se muestran los datos recibidos en la bitacora.',
+              'No se pudo actualizar el detalle. Se muestran los datos recibidos en la bitácora.',
             ),
           )
         }
@@ -881,7 +963,7 @@ function EventDetailModal({
   return (
     <Modal
       title="Detalle del evento de acceso"
-      description="Registro inmutable con la identidad de la tarjeta, la decision y las marcas de tiempo del lector y del servidor."
+      description="Resumen operativo del intento de lectura RFID registrado en el área."
       size="wide"
       onClose={onClose}
     >
@@ -910,7 +992,7 @@ function EventDetailModal({
 
       <div className="detail-grid">
         <div className="detail-item">
-          <div className="detail-label">Decision</div>
+          <div className="detail-label">Decisión</div>
           <div className="detail-value">
             <StatusBadge variant={detail.decision === 'granted' ? 'success' : 'danger'}>
               {detail.decision === 'granted' ? (
@@ -943,7 +1025,7 @@ function EventDetailModal({
           </div>
         </div>
         <div className="detail-item">
-          <div className="detail-label">Area</div>
+          <div className="detail-label">Área</div>
           <div className="detail-value">
             {area ? (
               <>
@@ -954,7 +1036,7 @@ function EventDetailModal({
                 )
               </>
             ) : (
-              'Area no disponible'
+              'Área no disponible'
             )}
           </div>
         </div>
@@ -970,14 +1052,12 @@ function EventDetailModal({
                 )
               </>
             ) : (
-              <span className="mono-text" translate="no">
-                {detail.deviceId}
-              </span>
+              'Controlador asignado al área'
             )}
           </div>
         </div>
         <div className="detail-item">
-          <div className="detail-label">Ocurrio en el lector</div>
+          <div className="detail-label">Ocurrió en el lector</div>
           <div className="detail-value mono-text">
             <time dateTime={detail.occurredAt}>
               {formatDateTimeWithSeconds(detail.occurredAt)}
@@ -998,42 +1078,53 @@ function EventDetailModal({
             {formatReceivedLag(detail.occurredAt, detail.receivedAt)}
           </div>
         </div>
-        <div className="detail-item">
-          <div className="detail-label">Identificador del cliente</div>
-          <div className="detail-value mono-text" translate="no">
-            {detail.clientEventId}
-          </div>
-        </div>
-        <div className="detail-item">
-          <div className="detail-label">Epoca del dispositivo</div>
-          <div className="detail-value mono-text" translate="no">
-            {detail.deviceEpoch ?? 'Sin reportar'}
-          </div>
-        </div>
-        <div className="detail-item">
-          <div className="detail-label">Secuencia del dispositivo</div>
-          <div className="detail-value mono-text" translate="no">
-            {detail.deviceSequence ?? 'Sin reportar'}
-          </div>
-        </div>
-        <div className="detail-item">
-          <div className="detail-label">Identificador del evento</div>
-          <div className="detail-value mono-text" translate="no">
-            {detail.id}
-          </div>
-        </div>
       </div>
 
-      <div>
-        <div className="detail-label">Metadatos del evento</div>
-        <pre
-          className="code-block"
-          aria-label="Metadatos del evento en formato JSON"
-          translate="no"
-        >
-          {formatMetadata(detail.metadata)}
-        </pre>
-      </div>
+      <details className="tech-details">
+        <summary className="tech-details-summary">
+          <span>Información técnica y trazabilidad</span>
+          <ChevronDown size={15} aria-hidden="true" />
+        </summary>
+        <div className="tech-details-body">
+          <div className="detail-grid">
+            <div className="detail-item">
+              <div className="detail-label">Identificador del cliente</div>
+              <div className="detail-value mono-text" translate="no">
+                {detail.clientEventId}
+              </div>
+            </div>
+            <div className="detail-item">
+              <div className="detail-label">Época del dispositivo</div>
+              <div className="detail-value mono-text" translate="no">
+                {detail.deviceEpoch ?? 'Sin reportar'}
+              </div>
+            </div>
+            <div className="detail-item">
+              <div className="detail-label">Secuencia del dispositivo</div>
+              <div className="detail-value mono-text" translate="no">
+                {detail.deviceSequence ?? 'Sin reportar'}
+              </div>
+            </div>
+            <div className="detail-item">
+              <div className="detail-label">Identificador del evento</div>
+              <div className="detail-value mono-text" translate="no">
+                {detail.id}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="detail-label">Metadatos del evento</div>
+            <pre
+              className="code-block"
+              aria-label="Metadatos del evento en formato JSON"
+              translate="no"
+            >
+              {formatMetadata(detail.metadata)}
+            </pre>
+          </div>
+        </div>
+      </details>
 
       <div className="modal-footer">
         <button type="button" className="btn btn-secondary" onClick={onClose}>

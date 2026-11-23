@@ -35,15 +35,29 @@ describe('DevicesPage', () => {
     vi.mocked(api.updateAccessDevice).mockResolvedValue(DEVICE_MAIN)
   })
 
-  it('renders device metadata, assigned areas and status', async () => {
+  it('renders device metadata, assigned areas and separates connectivity from admin status (H6)', async () => {
+    vi.mocked(api.listAccessDevices).mockResolvedValueOnce(
+      paginated([
+        DEVICE_MAIN,
+        {
+          ...DEVICE_MAIN,
+          id: 'device-2',
+          deviceCode: 'ESP32-QA-02',
+          name: 'Lector Reciente',
+          lastSeenAt: new Date().toISOString(),
+        },
+      ]),
+    )
     renderWithAuth(<DevicesPage />, makeAuth(['admin']))
 
     const table = await screen.findByRole('table')
     expect(within(table).getByText('Lector Entrada Principal')).toBeInTheDocument()
     expect(within(table).getByText('ESP32-QA-01')).toBeInTheDocument()
-    expect(within(table).getByText('Acceso Principal, Laboratorio de Redes')).toBeInTheDocument()
-    expect(within(table).getByText('En linea / Activo')).toBeInTheDocument()
-    expect(within(table).getByText(/config v4/)).toBeInTheDocument()
+    expect(within(table).getAllByText('Acceso Principal, Laboratorio de Redes')).toHaveLength(2)
+    expect(within(table).getByText('Sin conexión')).toBeInTheDocument()
+    expect(within(table).getByText('En línea')).toBeInTheDocument()
+    expect(within(table).getAllByText('Activo')).toHaveLength(2)
+    expect(within(table).getAllByText(/config v4/)).toHaveLength(2)
   })
 
   it('shows a clear outdated synchronization verdict', async () => {
@@ -52,14 +66,14 @@ describe('DevicesPage', () => {
     await screen.findByRole('table')
     fireEvent.click(
       screen.getByRole('button', {
-        name: 'Consultar sincronizacion de Lector Entrada Principal',
+        name: 'Consultar sincronización de Lector Entrada Principal',
       }),
     )
 
     expect(await screen.findByText('Desactualizado')).toBeInTheDocument()
     expect(screen.getByText(/Reportada por el equipo: v3/)).toBeInTheDocument()
-    expect(screen.getByText(/Version actual del servidor: v4/)).toBeInTheDocument()
-    expect(screen.getByText('7 evento(s) sin sincronizar')).toBeInTheDocument()
+    expect(screen.getByText(/Versión actual del servidor: v4/)).toBeInTheDocument()
+    expect(screen.getByText('7 eventos sin sincronizar')).toBeInTheDocument()
     expect(screen.getByText('Sin errores reportados')).toBeInTheDocument()
     expect(api.getDeviceSyncState).toHaveBeenCalledWith('device-1')
   })
@@ -87,7 +101,7 @@ describe('DevicesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Nuevo controlador' }))
 
     const dialog = screen.getByRole('dialog')
-    fireEvent.change(within(dialog).getByLabelText('Codigo del controlador'), {
+    fireEvent.change(within(dialog).getByLabelText('Código del controlador'), {
       target: { value: 'ESP32-B-02' },
     })
     fireEvent.change(within(dialog).getByLabelText('Nombre del controlador'), {
@@ -119,7 +133,7 @@ describe('DevicesPage', () => {
     ).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', {
-        name: 'Consultar sincronizacion de Lector Entrada Principal',
+        name: 'Consultar sincronización de Lector Entrada Principal',
       }),
     ).toBeInTheDocument()
   })
@@ -161,7 +175,7 @@ describe('DevicesPage', () => {
     await screen.findByRole('table')
     fireEvent.click(
       screen.getByRole('button', {
-        name: 'Consultar sincronizacion de Lector Entrada Principal',
+        name: 'Consultar sincronización de Lector Entrada Principal',
       }),
     )
 

@@ -53,7 +53,12 @@ describe('CredentialsPage', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Registrar tarjeta RFID' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    fireEvent.change(within(dialog).getByLabelText('Empleado titular'), {
+    // H5: Only active employees (Ana Torres) appear in the selector; inactive Luis Mendoza is excluded.
+    const employeeSelect = within(dialog).getByLabelText('Empleado titular')
+    expect(within(employeeSelect).getByText(/Ana Torres/)).toBeInTheDocument()
+    expect(within(employeeSelect).queryByText(/Luis Mendoza/)).not.toBeInTheDocument()
+
+    fireEvent.change(employeeSelect, {
       target: { value: 'emp-1' },
     })
     fireEvent.change(within(dialog).getByLabelText('UID de la tarjeta'), {
@@ -96,7 +101,7 @@ describe('CredentialsPage', () => {
     fireEvent.change(within(dialog).getByLabelText('Estado de la tarjeta'), {
       target: { value: 'blocked' },
     })
-    fireEvent.change(within(dialog).getByLabelText('Motivo de desactivacion'), {
+    fireEvent.change(within(dialog).getByLabelText('Motivo de desactivación'), {
       target: { value: 'Reporte del empleado' },
     })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar tarjeta' }))

@@ -126,7 +126,7 @@ describe('RBAC permissions and role-adaptive UI', () => {
 
       expect(await screen.findByText('Centro de Monitoreo Operativo')).toBeInTheDocument()
       expect(
-        screen.getByText('Monitoreo en vivo de accesos recientes y estado por area.'),
+        screen.getByText('Monitoreo en vivo de accesos recientes y estado por área.'),
       ).toBeInTheDocument()
       expect(screen.getByText('Perfil: Monitor')).toBeInTheDocument()
 
@@ -136,7 +136,7 @@ describe('RBAC permissions and role-adaptive UI', () => {
       expect(api.listAccessDevices).not.toHaveBeenCalled()
       expect(api.listEmployees).not.toHaveBeenCalled()
 
-      expect(screen.getByText('Areas protegidas')).toBeInTheDocument()
+      expect(screen.getByText('Áreas protegidas')).toBeInTheDocument()
       expect(screen.getByRole('link', { name: /Ver croquis/i })).toHaveAttribute('href', '/areas')
       expect(screen.getByText('Accesos concedidos (24h)')).toBeInTheDocument()
       expect(screen.getByText('Accesos denegados (24h)')).toBeInTheDocument()
@@ -145,7 +145,7 @@ describe('RBAC permissions and role-adaptive UI', () => {
       expect(screen.queryByText('Tarjetas RFID activas')).not.toBeInTheDocument()
       expect(screen.queryByText('Controladores ESP32')).not.toBeInTheDocument()
       expect(
-        screen.queryByText(/controlador\(es\) activo\(s\) tienen cambios/i),
+        screen.queryByText(/tienen cambios de configuración/i),
       ).not.toBeInTheDocument()
       expect(
         screen.queryByRole('region', { name: 'Estado de sincronización de dispositivos' }),
@@ -185,7 +185,7 @@ describe('RBAC permissions and role-adaptive UI', () => {
       expect(api.listEmployees).not.toHaveBeenCalled()
       expect(api.listAccessDevices).not.toHaveBeenCalled()
 
-      expect(screen.getByLabelText('Area')).toBeInTheDocument()
+      expect(screen.getByLabelText('Área')).toBeInTheDocument()
       expect(screen.queryByLabelText('Controlador')).not.toBeInTheDocument()
       expect(screen.queryByLabelText('Empleado')).not.toBeInTheDocument()
       expect(
@@ -211,18 +211,18 @@ describe('RBAC permissions and role-adaptive UI', () => {
       renderWithAuth(<AreasPage />, makeAuth(['viewer']))
 
       expect(await screen.findByRole('heading', { level: 1, name: 'Croquis en vivo' })).toBeInTheDocument()
-      expect(await screen.findByRole('region', { name: /Croquis de las areas/i })).toBeInTheDocument()
+      expect(await screen.findByRole('region', { name: /Croquis de las áreas/i })).toBeInTheDocument()
 
       expect(api.listAreas).toHaveBeenCalled()
       expect(api.listAccessEvents).toHaveBeenCalled()
       expect(api.listEmployees).not.toHaveBeenCalled()
 
       expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
-      expect(screen.queryByRole('tab', { name: /Catalogo de areas/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('tab', { name: /Catálogo de áreas/i })).not.toBeInTheDocument()
       expect(screen.queryByRole('tab', { name: /Simulador de accesos/i })).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Nueva area' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Nueva área' })).not.toBeInTheDocument()
       expect(
-        screen.queryByText(/solo un administrador puede crear o modificar areas/i),
+        screen.queryByText(/solo un administrador puede crear o modificar áreas/i),
       ).not.toBeInTheDocument()
     })
 
@@ -230,28 +230,28 @@ describe('RBAC permissions and role-adaptive UI', () => {
       renderWithAuth(<AreasPage />, makeAuth(['auditor']))
 
       await screen.findByRole('table')
-      expect(screen.getByRole('tab', { name: /Catalogo de areas/i })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: /Catálogo de áreas/i })).toBeInTheDocument()
       expect(screen.getByRole('tab', { name: /Croquis en vivo/i })).toBeInTheDocument()
       expect(screen.queryByRole('tab', { name: /Simulador de accesos/i })).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Nueva area' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Nueva área' })).not.toBeInTheDocument()
     })
 
     it('shows all 3 tabs without creation controls for operator', async () => {
       renderWithAuth(<AreasPage />, makeAuth(['operator']))
 
       await screen.findByRole('table')
-      expect(screen.getByRole('tab', { name: /Catalogo de areas/i })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: /Catálogo de áreas/i })).toBeInTheDocument()
       expect(screen.getByRole('tab', { name: /Croquis en vivo/i })).toBeInTheDocument()
       expect(screen.getByRole('tab', { name: /Simulador de accesos/i })).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Nueva area' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Nueva área' })).not.toBeInTheDocument()
     })
 
     it('shows all 3 tabs and area creation controls for admin', async () => {
       renderWithAuth(<AreasPage />, makeAuth(['admin']))
 
       await screen.findByRole('table')
-      expect(screen.getByRole('button', { name: 'Nueva area' })).toBeInTheDocument()
-      expect(screen.getByRole('tab', { name: /Catalogo de areas/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Nueva área' })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: /Catálogo de áreas/i })).toBeInTheDocument()
       expect(screen.getByRole('tab', { name: /Croquis en vivo/i })).toBeInTheDocument()
       expect(screen.getByRole('tab', { name: /Simulador de accesos/i })).toBeInTheDocument()
     })
@@ -264,27 +264,27 @@ describe('RBAC permissions and role-adaptive UI', () => {
         expectedPill: 'Administrador · Control total',
         expectedLinks: [
           'Panel de control',
-          'Bitacora de accesos',
+          'Bitácora de accesos',
           'Empleados',
           'Tarjetas RFID',
           'Controladores ESP32',
           'Permisos de acceso',
-          'Areas fisicas',
+          'Áreas físicas',
           'Cuentas y roles',
         ],
         hiddenLinks: [] as string[],
       },
       {
         role: 'operator',
-        expectedPill: 'Operador · Operacion diaria',
+        expectedPill: 'Operador · Operación diaria',
         expectedLinks: [
           'Panel de control',
-          'Bitacora de accesos',
+          'Bitácora de accesos',
           'Empleados',
           'Tarjetas RFID',
           'Controladores ESP32',
           'Permisos de acceso',
-          'Areas fisicas',
+          'Áreas físicas',
         ],
         hiddenLinks: ['Cuentas y roles'],
       },
@@ -293,25 +293,25 @@ describe('RBAC permissions and role-adaptive UI', () => {
         expectedPill: 'Auditor · Solo lectura y reportes',
         expectedLinks: [
           'Panel de control',
-          'Bitacora de accesos',
+          'Bitácora de accesos',
           'Empleados',
           'Tarjetas RFID',
           'Controladores ESP32',
           'Permisos de acceso',
-          'Areas fisicas',
+          'Áreas físicas',
         ],
         hiddenLinks: ['Cuentas y roles'],
       },
       {
         role: 'viewer',
         expectedPill: 'Monitor · Monitoreo en vivo',
-        expectedLinks: ['Panel de control', 'Bitacora de accesos', 'Croquis en vivo'],
+        expectedLinks: ['Panel de control', 'Bitácora de accesos', 'Croquis en vivo'],
         hiddenLinks: [
           'Empleados',
           'Tarjetas RFID',
           'Controladores ESP32',
           'Permisos de acceso',
-          'Areas fisicas',
+          'Áreas físicas',
           'Cuentas y roles',
         ],
       },
@@ -333,7 +333,7 @@ describe('RBAC permissions and role-adaptive UI', () => {
         )
 
         expect(await screen.findByText(expectedPill)).toBeInTheDocument()
-        const nav = screen.getByRole('navigation', { name: 'Menu administrativo' })
+        const nav = screen.getByRole('navigation', { name: 'Menú administrativo' })
 
         for (const label of expectedLinks) {
           expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument()
@@ -356,7 +356,7 @@ describe('RBAC permissions and role-adaptive UI', () => {
       )
 
       const alert = await screen.findByRole('alert')
-      expect(within(alert).getByRole('heading', { name: 'Modulo restringido para tu perfil' })).toBeInTheDocument()
+      expect(within(alert).getByRole('heading', { name: 'Módulo restringido para tu perfil' })).toBeInTheDocument()
       expect(within(alert).getByText(/Perfil activo: Monitor/)).toBeInTheDocument()
       expect(within(alert).getByRole('link', { name: 'Volver al panel de control' })).toHaveAttribute(
         'href',
@@ -380,7 +380,7 @@ describe('RBAC permissions and role-adaptive UI', () => {
 
         const alert = await screen.findByRole('alert')
         expect(
-          within(alert).getByRole('heading', { name: 'Modulo restringido para tu perfil' }),
+          within(alert).getByRole('heading', { name: 'Módulo restringido para tu perfil' }),
         ).toBeInTheDocument()
         expect(api.listUsers).not.toHaveBeenCalled()
       },

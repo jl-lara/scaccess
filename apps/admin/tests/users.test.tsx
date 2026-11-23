@@ -65,7 +65,7 @@ describe('UsersPage', () => {
     fireEvent.change(within(dialog).getByLabelText('UUID de Supabase Auth'), {
       target: { value: '22222222-2222-4222-8222-222222222222' },
     })
-    fireEvent.change(within(dialog).getByLabelText('Correo electronico'), {
+    fireEvent.change(within(dialog).getByLabelText('Correo electrónico'), {
       target: { value: 'nuevo.auditor@scaccess.local' },
     })
     expect(within(dialog).getByRole('checkbox', { name: /Auditor/ })).toBeChecked()

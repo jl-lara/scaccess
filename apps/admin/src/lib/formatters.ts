@@ -35,9 +35,41 @@ export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
 }
 
 export const DEVICE_STATUS_LABELS: Record<DeviceStatus, string> = {
-  active: 'En linea / Activo',
+  active: 'Activo',
   inactive: 'Inactivo',
   maintenance: 'En mantenimiento',
+}
+
+export const DEVICE_ONLINE_THRESHOLD_MS = 15 * 60 * 1000
+
+export interface DeviceConnectivityInfo {
+  state: 'online' | 'offline' | 'never'
+  label: string
+  variant: 'success' | 'warning' | 'neutral'
+}
+
+/**
+ * Evaluates real controller connectivity from its last heartbeat timestamp,
+ * keeping administrative status separate from live online state.
+ */
+export function getDeviceConnectivity(
+  device: { status: DeviceStatus; lastSeenAt: string | null },
+  nowMs = Date.now(),
+): DeviceConnectivityInfo {
+  if (!device.lastSeenAt) {
+    return { state: 'never', label: 'Sin conexión', variant: 'neutral' }
+  }
+
+  const parsedMs = new Date(device.lastSeenAt).getTime()
+  if (Number.isNaN(parsedMs)) {
+    return { state: 'offline', label: 'Sin conexión', variant: 'warning' }
+  }
+
+  if (device.status === 'active' && nowMs - parsedMs <= DEVICE_ONLINE_THRESHOLD_MS) {
+    return { state: 'online', label: 'En línea', variant: 'success' }
+  }
+
+  return { state: 'offline', label: 'Sin conexión', variant: 'warning' }
 }
 
 export const DECISION_LABELS: Record<AccessDecision, string> = {
@@ -52,12 +84,19 @@ export const REASON_LABELS: Record<AccessReason, string> = {
   card_lost: 'Tarjeta reportada extraviada',
   card_retired: 'Tarjeta retirada',
   employee_inactive: 'Empleado inactivo o suspendido',
-  permission_missing: 'Sin permiso para esta area',
+  permission_missing: 'Sin permiso para esta área',
   permission_expired: 'Permiso vencido',
   permission_outside_schedule: 'Fuera de horario permitido',
-  area_not_allowed: 'Area no autorizada en lector',
-  area_inactive: 'Area deshabilitada',
+  area_not_allowed: 'Área no autorizada en lector',
+  area_inactive: 'Área deshabilitada',
   device_error: 'Error de lectura en controlador',
+}
+
+const COUNT_FORMATTER = new Intl.NumberFormat('es-MX')
+
+export function formatCount(count: number, singular: string, plural: string): string {
+  const formatted = COUNT_FORMATTER.format(count)
+  return `${formatted} ${count === 1 ? singular : plural}`
 }
 
 export function formatDateTime(iso: string | null | undefined): string {

@@ -4,6 +4,7 @@ import { RoleGuard } from './components/auth/RoleGuard'
 import { AppShell } from './components/layout/AppShell'
 import { useAuth } from './context/AuthContext'
 import { LoginPage } from './pages/LoginPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 
 // Route-level code splitting keeps the initial console bundle small: each
 // administrative module is downloaded only when the user navigates to it.
@@ -40,10 +41,10 @@ function ProtectedRoutes() {
       <main className="login-screen" aria-busy="true">
         <div className="surface-card" style={{ textAlign: 'center', maxWidth: 380 }}>
           <p style={{ margin: 0, fontWeight: 600 }} role="status" aria-live="polite">
-            Verificando sesion administrativa…
+            Verificando sesión administrativa…
           </p>
           <p className="form-hint" style={{ margin: '0.45rem 0 0' }}>
-            Si Render estaba suspendido, esta verificacion puede tardar hasta 60 segundos.
+            Si Render estaba suspendido, esta verificación puede tardar hasta 60 segundos.
           </p>
         </div>
       </main>
@@ -61,6 +62,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route element={<ProtectedRoutes />}>
         <Route index element={<DashboardPage />} />
         <Route path="access-events" element={<AccessEventsPage />} />

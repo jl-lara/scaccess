@@ -38,7 +38,7 @@ describe('AccessEventsPage', () => {
     renderWithAuth(<AccessEventsPage />, makeAuth(['auditor']))
 
     const table = await screen.findByRole('table')
-    expect(screen.getByRole('columnheader', { name: 'Ocurrio (lector)' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Ocurrió (lector)' })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Recibido (servidor)' })).toBeInTheDocument()
     expect(within(table).getByText('Ana Torres')).toBeInTheDocument()
     expect(
@@ -46,34 +46,61 @@ describe('AccessEventsPage', () => {
     ).toBeInTheDocument()
     expect(within(table).getByText('DEADBEEF1234')).toBeInTheDocument()
     expect(within(table).getByText('Tarjeta no registrada')).toBeInTheDocument()
+    expect(screen.getByText('2 eventos en total')).toBeInTheDocument()
   })
 
-  it('opens the immutable event detail with client identifiers and formatted metadata', async () => {
+  it('uses singular grammar when only one event matches (H11)', async () => {
+    vi.mocked(api.listAccessEvents).mockResolvedValueOnce(paginated([EVENT_GRANTED]))
+    renderWithAuth(<AccessEventsPage />, makeAuth(['auditor']))
+
+    await screen.findByRole('table')
+    expect(screen.getByText('1 evento en total')).toBeInTheDocument()
+  })
+
+  it('opens the immutable event detail by clicking a row and keeps technical metadata collapsible', async () => {
     renderWithAuth(<AccessEventsPage />, makeAuth(['auditor']))
 
     const table = await screen.findByRole('table')
     const row = within(table).getByText('04A1B2C3D4E5F6').closest('tr')
     if (!row) throw new Error('No se encontro la fila del evento concedido')
 
-    fireEvent.click(within(row).getByRole('button', { name: /Ver detalle/ }))
+    fireEvent.click(row)
 
-    expect(await screen.findByText('client-evt-1')).toBeInTheDocument()
-    expect(screen.getByText('epoch-3')).toBeInTheDocument()
-    expect(screen.getByText('1042')).toBeInTheDocument()
-    expect(screen.getByText(/"reader": "PN532"/)).toBeInTheDocument()
-    expect(screen.getByText(/"offline": true/)).toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog', { name: /Detalle del evento/i })
+    const summary = within(dialog).getByText('Información técnica y trazabilidad')
+    const detailsEl = summary.closest('details')
+    expect(detailsEl).not.toBeNull()
+    expect(detailsEl).not.toHaveAttribute('open')
+
+    fireEvent.click(summary)
+    expect(detailsEl).toHaveAttribute('open')
+    expect(await within(dialog).findByText('client-evt-1')).toBeInTheDocument()
+    expect(within(dialog).getByText('epoch-3')).toBeInTheDocument()
+    expect(within(dialog).getByText('1042')).toBeInTheDocument()
+    expect(within(dialog).getByText(/"reader": "PN532"/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/"offline": true/)).toBeInTheDocument()
     expect(api.getAccessEvent).toHaveBeenCalledWith('event-1')
   })
 
-  it('applies decision, normalized UID and date filters', async () => {
+  it('applies decision filter immediately and normalized UID filter on search submit', async () => {
     renderWithAuth(<AccessEventsPage />, makeAuth(['auditor']))
 
     await screen.findByRole('table')
     fireEvent.change(screen.getByLabelText('Resultado'), { target: { value: 'denied' } })
+
+    await waitFor(() => {
+      expect(api.listAccessEvents).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          page: 1,
+          decision: 'denied',
+        }),
+      )
+    })
+
     fireEvent.change(screen.getByLabelText('UID de tarjeta'), {
       target: { value: 'deadbeef1234' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Aplicar filtros' }))
+    fireEvent.submit(screen.getByRole('search'))
 
     await waitFor(() => {
       expect(api.listAccessEvents).toHaveBeenLastCalledWith(
@@ -86,7 +113,7 @@ describe('AccessEventsPage', () => {
     })
   })
 
-  it('validates the UID and the date range before querying the API', async () => {
+  it('validates the UID, inverted range and future dates before querying the API', async () => {
     renderWithAuth(<AccessEventsPage />, makeAuth(['auditor']))
 
     await screen.findByRole('table')
@@ -95,23 +122,35 @@ describe('AccessEventsPage', () => {
     fireEvent.change(screen.getByLabelText('UID de tarjeta'), {
       target: { value: 'not-a-uid' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Aplicar filtros' }))
+    fireEvent.submit(screen.getByRole('search'))
     expect(await screen.findByRole('alert')).toHaveTextContent(/hexadecimal par de 8 a 32/i)
     expect(api.listAccessEvents).toHaveBeenCalledTimes(callsAfterInitialLoad)
 
     fireEvent.change(screen.getByLabelText('UID de tarjeta'), { target: { value: '' } })
     fireEvent.change(screen.getByLabelText('Desde'), {
+      target: { value: '2099-01-01T12:00' },
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No puedes buscar eventos en fechas futuras.',
+    )
+    expect(api.listAccessEvents).toHaveBeenCalledTimes(callsAfterInitialLoad)
+
+    fireEvent.change(screen.getByLabelText('Desde'), {
       target: { value: '2026-11-10T12:00' },
     })
+    await waitFor(() => {
+      expect(api.listAccessEvents).toHaveBeenCalledTimes(callsAfterInitialLoad + 1)
+    })
+    const callsBeforeInverted = vi.mocked(api.listAccessEvents).mock.calls.length
+
     fireEvent.change(screen.getByLabelText('Hasta'), {
       target: { value: '2026-11-09T12:00' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Aplicar filtros' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       /no puede ser anterior a la fecha de inicio/i,
     )
-    expect(api.listAccessEvents).toHaveBeenCalledTimes(callsAfterInitialLoad)
+    expect(api.listAccessEvents).toHaveBeenCalledTimes(callsBeforeInverted)
   })
 
   it('shows an explicit empty state when the filters match no events', async () => {
@@ -120,7 +159,7 @@ describe('AccessEventsPage', () => {
 
     expect(await screen.findByText('Sin eventos que coincidan')).toBeInTheDocument()
     expect(
-      screen.getByText(/Ajusta los filtros para ampliar el rango de busqueda/),
+      screen.getByText(/Ajusta los filtros para ampliar el rango de búsqueda/),
     ).toBeInTheDocument()
   })
 
@@ -236,7 +275,6 @@ describe('AccessEventsPage', () => {
 
       await screen.findByRole('table')
       fireEvent.change(screen.getByLabelText('Resultado'), { target: { value: 'denied' } })
-      fireEvent.click(screen.getByRole('button', { name: 'Aplicar filtros' }))
 
       await waitFor(() => {
         expect(api.listAccessEvents).toHaveBeenLastCalledWith(
@@ -329,10 +367,10 @@ describe('buildAccessEventsPdf', () => {
     expect(raw).toContain('/Type /Page')
     expect(raw).toContain('/Encoding /WinAnsiEncoding')
     expect(raw).toContain('0.118 0.078 0.153 rg')
-    expect(raw).toContain('Accesa - Reporte de Bitacora de Accesos')
+    expect(raw).toContain('Accesa - Reporte de Bitácora de Accesos')
     expect(raw).toContain('Ana Torres')
     expect(raw).toContain('04A1B2C3D4E5F6')
-    expect(raw).toContain('Pagina 1 de 1')
+    expect(raw).toContain('Página 1 de 1')
 
     // Validate xref offsets against exact byte positions
     const startxrefMatch = raw.match(/startxref\n(\d+)\n%%EOF$/)
@@ -380,7 +418,7 @@ describe('buildAccessEventsPdf', () => {
     const raw = decodeLatin1(pdfBytes)
     expect(raw).toContain('Ra\xFAl N\xFA\xF1ez \\(Planta\\\\Norte\\) ?')
     expect(raw).toContain('\xC1rea Cr\xEDtica \xD1and\xFA \xDC')
-    expect(raw).toContain('Pagina 1 de 2')
-    expect(raw).toContain('Pagina 2 de 2')
+    expect(raw).toContain('Página 1 de 2')
+    expect(raw).toContain('Página 2 de 2')
   })
 })

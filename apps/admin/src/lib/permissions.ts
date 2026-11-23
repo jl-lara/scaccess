@@ -39,7 +39,7 @@ const PROFILE_TABLE: Record<WebPermissionProfile, WebPermissions> = {
   operator: {
     profile: 'operator',
     profileLabel: 'Operador',
-    profileSummary: 'Operacion diaria',
+    profileSummary: 'Operación diaria',
     isAdmin: false,
     canWriteCatalog: true,
     canManageInfrastructure: false,

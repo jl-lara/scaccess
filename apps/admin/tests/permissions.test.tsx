@@ -58,7 +58,7 @@ describe('PermissionsPage', () => {
     fireEvent.change(within(dialog).getByLabelText('Empleado beneficiario'), {
       target: { value: 'emp-1' },
     })
-    fireEvent.change(within(dialog).getByLabelText('Area protegida'), {
+    fireEvent.change(within(dialog).getByLabelText('Área protegida'), {
       target: { value: 'area-1' },
     })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar permiso' }))
@@ -90,7 +90,7 @@ describe('PermissionsPage', () => {
     const dialog = screen.getByRole('dialog', { name: 'Revocar permiso de acceso' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(within(dialog).getByText(/no elimina el registro del permiso/i)).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar revocacion' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar revocación' }))
 
     await waitFor(() => {
       expect(api.revokeAccessPermission).toHaveBeenCalledWith('permission-1')
@@ -98,6 +98,44 @@ describe('PermissionsPage', () => {
     expect(
       await screen.findByText(/Permiso revocado. El historial de accesos se conserva intacto./),
     ).toBeInTheDocument()
+  })
+
+  it('excludes inactive employees from grant modal (H5) and rejects past or >5-year end dates', async () => {
+    renderWithAuth(<PermissionsPage />, makeAuth(['operator']))
+
+    await screen.findByRole('table')
+    fireEvent.click(screen.getByRole('button', { name: 'Otorgar permiso' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Otorgar permiso de acceso' })
+    const employeeSelect = within(dialog).getByLabelText('Empleado beneficiario')
+    expect(within(employeeSelect).getByText(/Ana Torres/)).toBeInTheDocument()
+    expect(within(employeeSelect).queryByText(/Luis Mendoza/)).not.toBeInTheDocument()
+
+    fireEvent.change(employeeSelect, { target: { value: 'emp-1' } })
+    fireEvent.change(within(dialog).getByLabelText('Área protegida'), {
+      target: { value: 'area-1' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Vigente desde'), {
+      target: { value: '2020-01-01' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar permiso' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'La fecha de inicio no puede ser anterior al día de hoy.',
+    )
+
+    fireEvent.change(within(dialog).getByLabelText('Vigente desde'), {
+      target: { value: '' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Vigente hasta'), {
+      target: { value: '2099-12-31' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar permiso' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'La vigencia máxima permitida es de 5 años hacia el futuro.',
+    )
+    expect(api.createAccessPermission).not.toHaveBeenCalled()
   })
 
   it('shows an actionable empty state and clears active filters', async () => {

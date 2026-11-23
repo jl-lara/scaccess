@@ -23,8 +23,8 @@ describe('LoginPage', () => {
   it('renders labelled credential fields without prefilled QA secrets', () => {
     renderWithAuth(<LoginPage />, createAuth())
 
-    expect(screen.getByLabelText('Correo electronico institucional')).toHaveValue('')
-    const passwordInput = screen.getByLabelText('Contrasena')
+    expect(screen.getByLabelText('Correo electrónico institucional')).toHaveValue('')
+    const passwordInput = screen.getByLabelText('Contraseña')
     expect(passwordInput).toHaveValue('')
     expect(passwordInput).toHaveAttribute('type', 'password')
     expect(screen.queryByDisplayValue('QaAccess!2026#Admin')).not.toBeInTheDocument()
@@ -36,18 +36,18 @@ describe('LoginPage', () => {
     const signIn = vi.fn().mockResolvedValue(undefined)
     renderWithAuth(<LoginPage />, createAuth({ signIn }))
 
-    const emailInput = screen.getByLabelText('Correo electronico institucional')
-    const passwordInput = screen.getByLabelText('Contrasena')
+    const emailInput = screen.getByLabelText('Correo electrónico institucional')
+    const passwordInput = screen.getByLabelText('Contraseña')
 
     fireEvent.change(emailInput, { target: { value: 'admin.qa@scaccess.local' } })
     fireEvent.change(passwordInput, { target: { value: 'QaAccess!2026#Admin' } })
 
-    const showButton = screen.getByRole('button', { name: 'Mostrar contrasena' })
+    const showButton = screen.getByRole('button', { name: 'Mostrar contraseña' })
     expect(showButton).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(showButton)
 
     expect(passwordInput).toHaveAttribute('type', 'text')
-    expect(screen.getByRole('button', { name: 'Ocultar contrasena' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Ocultar contraseña' })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
@@ -59,13 +59,45 @@ describe('LoginPage', () => {
     })
   })
 
+  it('validates email in Spanish before submitting and supports password recovery (H7, H9)', async () => {
+    const signIn = vi.fn().mockResolvedValue(undefined)
+    const requestPasswordReset = vi.fn().mockResolvedValue(undefined)
+    renderWithAuth(<LoginPage />, createAuth({ signIn, requestPasswordReset }))
+
+    fireEvent.change(screen.getByLabelText('Correo electrónico institucional'), {
+      target: { value: 'correo-invalido' },
+    })
+    fireEvent.change(screen.getByLabelText('Contraseña'), {
+      target: { value: 'Secret123!' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Ingresar a la consola' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Ingresa un correo electrónico válido.',
+    )
+    expect(signIn).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '¿Olvidaste tu contraseña?' }))
+    fireEvent.change(screen.getByLabelText('Correo electrónico institucional'), {
+      target: { value: 'admin.qa@scaccess.local' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar enlace de recuperación' }))
+
+    await waitFor(() => {
+      expect(requestPasswordReset).toHaveBeenCalledWith('admin.qa@scaccess.local')
+    })
+    expect(
+      await screen.findByText(/recibirás un enlace para restablecer tu contraseña/i),
+    ).toBeInTheDocument()
+  })
+
   it('announces authentication errors and disables the submit while a session is verified', () => {
     const { rerender } = renderWithAuth(
       <LoginPage />,
-      createAuth({ error: 'Credenciales invalidas. Verifica tu correo y contrasena.' }),
+      createAuth({ error: 'Credenciales inválidas. Verifica tu correo y contraseña.' }),
     )
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Credenciales invalidas')
+    expect(screen.getByRole('alert')).toHaveTextContent('Credenciales inválidas')
 
     rerender(
       <AuthContext.Provider value={createAuth({ loading: true })}>
@@ -73,7 +105,7 @@ describe('LoginPage', () => {
       </AuthContext.Provider>,
     )
 
-    const submitButton = screen.getByRole('button', { name: /Verificando sesion/ })
+    const submitButton = screen.getByRole('button', { name: /Verificando sesión/ })
     expect(submitButton).toBeDisabled()
   })
 })

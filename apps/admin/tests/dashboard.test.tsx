@@ -170,11 +170,13 @@ describe('DashboardPage', () => {
     expect(await screen.findByText('Centro de Monitoreo Operativo')).toBeInTheDocument()
     expect(screen.getByText('Empleados activos')).toBeInTheDocument()
     expect(screen.getByText('Tarjetas RFID activas')).toBeInTheDocument()
-    expect(screen.getByText('Areas protegidas')).toBeInTheDocument()
+    expect(screen.getByText('Áreas protegidas')).toBeInTheDocument()
     expect(screen.getByText('Accesos concedidos (24h)')).toBeInTheDocument()
     expect(screen.getByText('Accesos denegados (24h)')).toBeInTheDocument()
     expect(screen.getByText('Lector Entrada Principal')).toBeInTheDocument()
-    expect(screen.getByText(/controlador\(es\) activo\(s\) tienen cambios/i)).toBeInTheDocument()
+    expect(screen.getByText('Sin conexión')).toBeInTheDocument()
+    expect(screen.getByText('Activo')).toBeInTheDocument()
+    expect(screen.getByText(/1 controlador activo/)).toBeInTheDocument()
 
     expect(
       await screen.findByRole('img', { name: 'Gráfica de últimos eventos de acceso' }),
@@ -238,7 +240,7 @@ describe('DashboardPage', () => {
     )
 
     expect(
-      await screen.findByText('Sin eventos de acceso en las ultimas 24 horas.'),
+      await screen.findByText('Sin eventos de acceso en las últimas 24 horas.'),
     ).toBeInTheDocument()
     expect(screen.getByText('Sin eventos registrados')).toBeInTheDocument()
     expect(
@@ -337,7 +339,7 @@ describe('DashboardPage', () => {
     expect(employeesKpiCard).toHaveClass('is-hovered')
     expect(employeesKpiCard.querySelector('.kpi-detail-slot')).toBe(employeesSlot)
     expect(within(employeesKpiCard).getByText('Inactivos / baja: 1')).toBeInTheDocument()
-    expect(within(employeesKpiCard).getByText('Personal activo: 75% del padron')).toBeInTheDocument()
+    expect(within(employeesKpiCard).getByText('Personal activo: 75% del padrón')).toBeInTheDocument()
     fireEvent.mouseLeave(employeesKpiCard)
     expect(employeesKpiCard.querySelector('.kpi-detail-slot')).toBe(employeesSlot)
     expect(screen.queryByText('Inactivos / baja: 1')).not.toBeInTheDocument()
@@ -365,11 +367,11 @@ describe('DashboardPage', () => {
     fireEvent.mouseEnter(areaRow)
     expect(areaRow).toHaveClass('is-hovered')
     expect(areaRow.querySelector('.area-detail-slot')).toBe(areaSlot)
-    expect(within(areaRow).getByText('50% aprobacion · 2 lectura(s) recientes')).toBeInTheDocument()
+    expect(within(areaRow).getByText('50% aprobación · 2 lecturas recientes')).toBeInTheDocument()
     fireEvent.mouseLeave(areaRow)
     expect(areaRow.querySelector('.area-detail-slot')).toBe(areaSlot)
     expect(
-      within(areaRow).queryByText('50% aprobacion · 2 lectura(s) recientes'),
+      within(areaRow).queryByText('50% aprobación · 2 lecturas recientes'),
     ).not.toBeInTheDocument()
 
     const grantedPulseBar = screen.getByTitle(/04A1B2C3D4E5F6/)
@@ -410,9 +412,43 @@ describe('DashboardPage', () => {
     expect(deviceRow.querySelector('.device-extra-slot')).toBe(deviceSlot)
     expect(within(deviceRow).getByText('Hardware: ESP32-S3')).toBeInTheDocument()
     expect(within(deviceRow).getByText('Firmware: 1.0.0')).toBeInTheDocument()
-    expect(within(deviceRow).getByText('Areas: 1')).toBeInTheDocument()
+    expect(within(deviceRow).getByText('Áreas: 1')).toBeInTheDocument()
     fireEvent.mouseLeave(deviceRow)
     expect(deviceRow.querySelector('.device-extra-slot')).toBe(deviceSlot)
     expect(within(deviceRow).queryByText('Hardware: ESP32-S3')).not.toBeInTheDocument()
+  })
+
+  it('shows En línea badge in DashboardPage when device lastSeenAt is within threshold (H6)', async () => {
+    vi.mocked(api.listAccessDevices).mockResolvedValueOnce(
+      paginated([
+        {
+          id: 'dev-online',
+          deviceCode: 'ESP32-QA-ONLINE',
+          name: 'Lector En Vivo',
+          location: 'Edificio B',
+          status: 'active',
+          hardwareModel: 'ESP32-S3',
+          firmwareVersion: '1.0.0',
+          configVersion: '3',
+          lastSeenAt: new Date().toISOString(),
+          provisionedAt: '2026-11-01T00:00:00.000Z',
+          areaIds: ['area-1'],
+          createdAt: '2026-11-01T00:00:00.000Z',
+          updatedAt: new Date().toISOString(),
+        },
+      ]),
+    )
+
+    render(
+      <MemoryRouter>
+        <AuthContext.Provider value={mockAuthValue}>
+          <DashboardPage />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Lector En Vivo')).toBeInTheDocument()
+    expect(screen.getByText('En línea')).toBeInTheDocument()
+    expect(screen.getByText('Activo')).toBeInTheDocument()
   })
 })
