@@ -9,7 +9,7 @@
     "apps/api",
     "apps/admin",
     "apps/mobile",
-    "landing"
+    "apps/landing"
   ],
   "engines": {
     "node": ">=22.12.0"
