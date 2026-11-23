@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { CheckCircle2, ChevronDown, Eye, FileDown, RefreshCw, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Eye, FileDown, RefreshCw, Sparkles, XCircle } from 'lucide-react'
 import type {
   AccessDecision,
   AccessDeviceDto,
@@ -14,6 +14,7 @@ import { NoticeBanner } from '../components/ui/NoticeBanner'
 import { Pagination } from '../components/ui/Pagination'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { COLD_START_HINT, TableMessage } from '../components/ui/TableMessage'
+import { useOptionalAssistant } from '../context/AssistantContext'
 import { api } from '../lib/api'
 import {
   DECISION_LABELS,
@@ -917,6 +918,7 @@ function EventDetailModal({
   deviceById,
   onClose,
 }: EventDetailModalProps) {
+  const assistant = useOptionalAssistant()
   const [detail, setDetail] = useState<AccessEventDto>(event)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -959,6 +961,34 @@ function EventDetailModal({
   const employee = detail.employeeId ? employeeById.get(detail.employeeId) : undefined
   const area = areaById.get(detail.areaId)
   const device = deviceById.get(detail.deviceId)
+
+  const resolvedEmployeeLabel = employee
+    ? `${employee.firstName} ${employee.lastName} (${employee.employeeCode})`
+    : 'Tarjeta desconocida / sin empleado'
+  const resolvedAreaLabel = area ? `${area.name} (${area.code})` : 'Área no disponible'
+  const resolvedDeviceLabel = device
+    ? `${device.name} (${device.deviceCode})`
+    : 'Controlador asignado al área'
+
+  function handleExplainWithAssistant() {
+    if (!assistant) return
+    assistant.openAssistantWithEvent({
+      id: detail.id,
+      decision: detail.decision,
+      reasonCode: detail.reasonCode,
+      cardUid: detail.cardUid,
+      employeeLabel: resolvedEmployeeLabel,
+      areaLabel: resolvedAreaLabel,
+      deviceLabel: resolvedDeviceLabel,
+      occurredAt: detail.occurredAt,
+      receivedAt: detail.receivedAt,
+      clientEventId: detail.clientEventId,
+      deviceEpoch: detail.deviceEpoch,
+      deviceSequence: detail.deviceSequence,
+      metadata: detail.metadata,
+    })
+    onClose()
+  }
 
   return (
     <Modal
@@ -1127,6 +1157,12 @@ function EventDetailModal({
       </details>
 
       <div className="modal-footer">
+        {assistant ? (
+          <button type="button" className="btn btn-secondary" onClick={handleExplainWithAssistant}>
+            <Sparkles size={15} aria-hidden="true" />
+            <span>Explicar metadatos con el asistente</span>
+          </button>
+        ) : null}
         <button type="button" className="btn btn-secondary" onClick={onClose}>
           Cerrar
         </button>
