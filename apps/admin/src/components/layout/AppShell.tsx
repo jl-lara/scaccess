@@ -17,11 +17,13 @@ import {
   UserCog,
 } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { AssistantProvider } from '../../context/AssistantContext'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { api } from '../../lib/api'
 import { ROLE_LABELS } from '../../lib/formatters'
 import { usePermissions } from '../../lib/permissions'
+import { AssistantWidget } from '../assistant/AssistantWidget'
 
 interface NavItem {
   to: string
@@ -175,10 +177,11 @@ export function AppShell() {
   }
 
   return (
-    <div className={`app-shell${isSidebarCollapsed ? ' is-sidebar-collapsed' : ''}`}>
-      <a className="skip-link" href="#main-content">
-        Saltar al contenido principal
-      </a>
+    <AssistantProvider>
+      <div className={`app-shell${isSidebarCollapsed ? ' is-sidebar-collapsed' : ''}`}>
+        <a className="skip-link" href="#main-content">
+          Saltar al contenido principal
+        </a>
       <aside id="app-sidebar" className="app-sidebar">
         <div className="brand-header">
           <div className="brand-logo-frame">
@@ -327,5 +330,7 @@ export function AppShell() {
         </main>
       </div>
     </div>
+    <AssistantWidget />
+    </AssistantProvider>
   )
 }

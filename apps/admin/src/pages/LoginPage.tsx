@@ -1,15 +1,12 @@
 import { useRef, useState, type FormEvent } from 'react'
 import {
-  Activity,
   ArrowLeft,
   CheckCircle2,
-  Cpu,
   Eye,
   EyeOff,
   KeyRound,
   Mail,
   Moon,
-  ShieldCheck,
   Sun,
 } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
@@ -128,43 +125,7 @@ export function LoginPage() {
         </button>
       </div>
 
-      <div className="login-layout">
-        <aside className="login-showcase" aria-label="Resumen de plataforma Accesa">
-          <div className="login-showcase-badge">Sistema de Control de Acceso RFID</div>
-          <h2 className="login-showcase-heading">
-            Seguridad física centralizada para campus, laboratorios y áreas críticas.
-          </h2>
-          <p className="login-showcase-copy">
-            Administra personal acreditado, tarjetas RFID, vigencias de acceso y controladores
-            ESP32-S3 con operación continua incluso sin conexión.
-          </p>
-
-          <ul className="login-feature-list">
-            <li className="login-feature-item">
-              <Cpu size={18} aria-hidden="true" />
-              <div>
-                <strong>Controladores ESP32-S3 offline-first</strong>
-                <span>Validación local en lector y sincronización resiliente de eventos.</span>
-              </div>
-            </li>
-            <li className="login-feature-item">
-              <Activity size={18} aria-hidden="true" />
-              <div>
-                <strong>Bitácora inmutable y reportes PDF</strong>
-                <span>Trazabilidad completa con hora del lector, servidor y filtros en vivo.</span>
-              </div>
-            </li>
-            <li className="login-feature-item">
-              <ShieldCheck size={18} aria-hidden="true" />
-              <div>
-                <strong>Acceso por perfil operativo</strong>
-                <span>Permisos diferenciados para Administrador, Operador, Auditor y Monitor.</span>
-              </div>
-            </li>
-          </ul>
-        </aside>
-
-        <section className="login-card">
+      <section className="login-card">
           <div className="login-brand-row">
             <div className="brand-logo-frame">
               <img
@@ -363,8 +324,7 @@ export function LoginPage() {
             el servicio estuvo suspendido en Render, la primera autenticación puede tardar hasta 60
             segundos.
           </div>
-        </section>
-      </div>
+      </section>
     </main>
   )
 }
