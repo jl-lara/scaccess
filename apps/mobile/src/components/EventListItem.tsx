@@ -4,7 +4,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { useTheme } from '../context/ThemeContext'
 import { radii, spacing, type ThemeColors } from '../theme/colors'
-import { getAreaDisplayName, REASON_LABELS } from '../utils/areaLabels'
+import { getSyncDelayInfo } from '../utils/accessHistory'
+import {
+  DECISION_LABELS,
+  getAreaDisplayName,
+  REASON_LABELS,
+} from '../utils/areaLabels'
 import { formatDateTime } from '../utils/formatters'
 import { DecisionBadge } from './DecisionBadge'
 
@@ -21,15 +26,35 @@ export function EventListItem({ event, onPress }: EventListItemProps) {
   const { colors } = useTheme()
   const styles = useMemo(() => createStyles(colors), [colors])
 
+  const areaName = getAreaDisplayName(event.areaId)
+  const dateTime = formatDateTime(event.occurredAt)
+  const reasonLabel = REASON_LABELS[event.reasonCode]
+  const decisionLabel = DECISION_LABELS[event.decision]
+  const syncDelay = getSyncDelayInfo(event.occurredAt, event.receivedAt)
+  const delayLabel = syncDelay.isDelayed ? syncDelay.shortLabel : null
+
+  const accessibilityLabel =
+    delayLabel !== null
+      ? `${areaName}, ${decisionLabel}, ${dateTime}, ${reasonLabel}, ${delayLabel}`
+      : `${areaName}, ${decisionLabel}, ${dateTime}, ${reasonLabel}`
+
   return (
     <Pressable
       onPress={() => onPress(event)}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint="Abre el detalle del evento de acceso"
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
     >
       <View style={styles.content}>
-        <Text style={styles.areaName}>{getAreaDisplayName(event.areaId)}</Text>
-        <Text style={styles.dateTime}>{formatDateTime(event.occurredAt)}</Text>
-        <Text style={styles.reason}>{REASON_LABELS[event.reasonCode]}</Text>
+        <Text style={styles.areaName}>{areaName}</Text>
+        <Text style={styles.dateTime}>{dateTime}</Text>
+        <Text style={styles.reason}>{reasonLabel}</Text>
+        {delayLabel !== null ? (
+          <View style={styles.delayPill}>
+            <Text style={styles.delayPillText}>{delayLabel}</Text>
+          </View>
+        ) : null}
       </View>
       <DecisionBadge decision={event.decision} />
     </Pressable>
@@ -74,6 +99,21 @@ function createStyles(colors: ThemeColors) {
       color: colors.textMuted,
       fontSize: 12,
       marginTop: spacing.xs,
+    },
+    delayPill: {
+      alignSelf: 'flex-start',
+      marginTop: spacing.xs,
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      backgroundColor: colors.warningSoft,
+      borderColor: colors.warningBorder,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+    },
+    delayPillText: {
+      color: colors.warningText,
+      fontSize: 11,
+      fontWeight: '600',
     },
   })
 }

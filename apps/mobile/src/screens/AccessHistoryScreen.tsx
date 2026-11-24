@@ -3,10 +3,11 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  FlatList,
   Image,
   Pressable,
   RefreshControl,
+  ScrollView,
+  SectionList,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,12 +18,20 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { listMyAccessEvents } from '../api/accessEventsApi'
 import { EmptyState } from '../components/EmptyState'
 import { EventListItem } from '../components/EventListItem'
+import { HistorySkeleton } from '../components/HistorySkeleton'
+import { HistorySummaryCard } from '../components/HistorySummaryCard'
 import { ThemeToggleButton } from '../components/ThemeToggleButton'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import type { RootStackParamList } from '../navigation/types'
 import { getBrandAssets } from '../theme/brandAssets'
 import { radii, spacing, type ThemeColors } from '../theme/colors'
+import {
+  groupEventsByDay,
+  summarizeAccessEvents,
+  type AccessEventSection,
+} from '../utils/accessHistory'
+import { confirmAction } from '../utils/confirmAction'
 import { toHistoryError } from '../utils/errorMessages'
 
 function CardSeparator() {
@@ -46,6 +55,7 @@ export function AccessHistoryScreen({
   const [events, setEvents] = useState<AccessEventDto[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -67,6 +77,7 @@ export function AccessHistoryScreen({
       setEvents(response.data)
       setPage(1)
       setTotalPages(response.pagination.totalPages)
+      setTotalCount(response.pagination.total)
     } catch (err) {
       setError(toHistoryError(err))
     } finally {
@@ -90,6 +101,7 @@ export function AccessHistoryScreen({
       setEvents((prev) => [...prev, ...response.data])
       setPage(nextPage)
       setTotalPages(response.pagination.totalPages)
+      setTotalCount(response.pagination.total)
     } catch (err) {
       setLoadMoreError(toHistoryError(err))
     } finally {
@@ -112,6 +124,7 @@ export function AccessHistoryScreen({
         setEvents(response.data)
         setPage(1)
         setTotalPages(response.pagination.totalPages)
+        setTotalCount(response.pagination.total)
       } catch (err) {
         if (cancelled) {
           return
@@ -143,6 +156,45 @@ export function AccessHistoryScreen({
     return () => clearTimeout(timer)
   }, [isInitialLoading])
 
+  const sections = useMemo(() => groupEventsByDay(events), [events])
+  const summary = useMemo(
+    () => summarizeAccessEvents(events, totalCount),
+    [events, totalCount],
+  )
+
+  const handleSignOut = useCallback(() => {
+    confirmAction({
+      title: 'Cerrar sesión',
+      message: '¿Seguro que deseas cerrar tu sesión en Accesa Móvil?',
+      confirmLabel: 'Cerrar sesión',
+      cancelLabel: 'Cancelar',
+      destructive: true,
+      onConfirm: signOut,
+    })
+  }, [signOut])
+
+  const listHeader =
+    error !== null || events.length > 0 ? (
+      <View>
+        {error !== null ? (
+          <View style={styles.inlineErrorBanner} role="alert">
+            <Text style={styles.inlineErrorText}>{error}</Text>
+            <Pressable
+              onPress={refresh}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.retryButton,
+                pressed && styles.retryButtonPressed,
+              ]}
+            >
+              <Text style={styles.retryButtonText}>Reintentar</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {events.length > 0 ? <HistorySummaryCard summary={summary} /> : null}
+      </View>
+    ) : undefined
+
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.header}>
@@ -166,8 +218,10 @@ export function AccessHistoryScreen({
           <ThemeToggleButton />
           <TouchableOpacity
             style={styles.signOutButton}
-            onPress={signOut}
+            onPress={handleSignOut}
             accessibilityRole="button"
+            accessibilityLabel="Cerrar sesión"
+            accessibilityHint="Solicita confirmación antes de cerrar tu sesión"
           >
             <Text style={styles.signOutText}>Salir</Text>
           </TouchableOpacity>
@@ -175,14 +229,14 @@ export function AccessHistoryScreen({
       </View>
 
       {isInitialLoading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colors.brand} />
+        <ScrollView contentContainerStyle={styles.listContent}>
           {slowStart ? (
             <Text style={styles.slowHint}>
               Conectando con el servidor… puede tardar unos segundos si estaba en reposo.
             </Text>
           ) : null}
-        </View>
+          <HistorySkeleton />
+        </ScrollView>
       ) : showErrorState ? (
         <View style={styles.centered}>
           <EmptyState
@@ -193,9 +247,26 @@ export function AccessHistoryScreen({
           />
         </View>
       ) : (
-        <FlatList
-          data={events}
+        <SectionList<AccessEventDto, AccessEventSection>
+          sections={sections}
           keyExtractor={(item) => item.id}
+          stickySectionHeadersEnabled={false}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle} accessibilityRole="header">
+                {section.title}
+              </Text>
+              <View
+                accessible
+                accessibilityLabel={`${section.data.length} ${section.data.length === 1 ? 'evento' : 'eventos'}`}
+                style={styles.sectionCountPill}
+              >
+                <Text style={styles.sectionCountText}>
+                  {section.data.length}
+                </Text>
+              </View>
+            </View>
+          )}
           renderItem={({ item }) => (
             <EventListItem
               event={item}
@@ -221,23 +292,7 @@ export function AccessHistoryScreen({
           }
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}
-          ListHeaderComponent={
-            error !== null ? (
-              <View style={styles.inlineErrorBanner} role="alert">
-                <Text style={styles.inlineErrorText}>{error}</Text>
-                <Pressable
-                  onPress={refresh}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [
-                    styles.retryButton,
-                    pressed && styles.retryButtonPressed,
-                  ]}
-                >
-                  <Text style={styles.retryButtonText}>Reintentar</Text>
-                </Pressable>
-              </View>
-            ) : undefined
-          }
+          ListHeaderComponent={listHeader}
           ListEmptyComponent={
             <EmptyState
               title="Sin accesos registrados"
@@ -340,7 +395,9 @@ function createStyles(colors: ThemeColors) {
       fontSize: 13,
       lineHeight: 18,
       textAlign: 'center',
+      alignSelf: 'center',
       maxWidth: 280,
+      marginBottom: spacing.md,
       color: colors.textMuted,
     },
     listContent: {
@@ -350,6 +407,35 @@ function createStyles(colors: ThemeColors) {
     listEmptyContent: {
       flexGrow: 1,
       padding: spacing.lg,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    sectionTitle: {
+      flex: 1,
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    sectionCountPill: {
+      minWidth: 24,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      borderRadius: radii.pill,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.borderSubtle,
+      alignItems: 'center',
+    },
+    sectionCountText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted,
     },
     inlineErrorBanner: {
       flexDirection: 'row',

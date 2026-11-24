@@ -7,6 +7,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -18,8 +19,10 @@ import { EmptyState } from '../components/EmptyState'
 import { useTheme } from '../context/ThemeContext'
 import type { RootStackParamList } from '../navigation/types'
 import { radii, spacing, type ThemeColors } from '../theme/colors'
+import { getSyncDelayInfo } from '../utils/accessHistory'
 import { REASON_LABELS, getAreaDisplayName } from '../utils/areaLabels'
 import { toDetailError } from '../utils/errorMessages'
+import { buildEventReceiptMessage } from '../utils/eventReceipt'
 import { formatCardUid, formatDateTime } from '../utils/formatters'
 
 const MONO_FONT = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' })
@@ -55,7 +58,14 @@ export function AccessEventDetailScreen({
   const [loading, setLoading] = useState(initialEvent == null)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const [shareError, setShareError] = useState<string | null>(null)
   const isMountedRef = useRef(true)
+
+  const syncDelay = useMemo(
+    () => (event ? getSyncDelayInfo(event.occurredAt, event.receivedAt) : null),
+    [event],
+  )
 
   useEffect(() => {
     isMountedRef.current = true
@@ -89,6 +99,23 @@ export function AccessEventDetailScreen({
     [eventId],
   )
 
+  const handleShareReceipt = useCallback(async () => {
+    if (!event || sharing) return
+    setShareError(null)
+    setSharing(true)
+    try {
+      await Share.share(buildEventReceiptMessage(event))
+    } catch {
+      if (isMountedRef.current) {
+        setShareError('No se pudo abrir el menú de compartir en este dispositivo.')
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setSharing(false)
+      }
+    }
+  }, [event, sharing])
+
   useEffect(() => {
     void reload(false)
   }, [reload])
@@ -118,7 +145,7 @@ export function AccessEventDetailScreen({
     )
   }
 
-  if (event === null) {
+  if (event === null || syncDelay === null) {
     return null
   }
 
@@ -168,11 +195,38 @@ export function AccessEventDetailScreen({
         value={formatDateTime(event.occurredAt)}
         styles={styles}
       />
-      <DetailBlock
-        label="Sincronizado al servidor"
-        value={formatDateTime(event.receivedAt)}
-        styles={styles}
-      />
+      <View style={styles.block}>
+        <Text style={styles.blockLabel}>Sincronizado al servidor</Text>
+        <Text style={styles.blockValue}>{formatDateTime(event.receivedAt)}</Text>
+        <View
+          style={[
+            styles.syncPill,
+            syncDelay.isDelayed
+              ? styles.syncPillDelayed
+              : syncDelay.delaySeconds !== null
+                ? styles.syncPillRealtime
+                : styles.syncPillUnavailable,
+          ]}
+        >
+          <Text
+            style={[
+              styles.syncPillText,
+              syncDelay.isDelayed
+                ? styles.syncPillTextDelayed
+                : syncDelay.delaySeconds !== null
+                  ? styles.syncPillTextRealtime
+                  : styles.syncPillTextUnavailable,
+            ]}
+          >
+            {syncDelay.detailLabel}
+          </Text>
+        </View>
+        {syncDelay.isDelayed ? (
+          <Text style={styles.syncHint}>
+            El controlador ESP32-S3 registró este acceso sin conexión y lo envió al recuperar red.
+          </Text>
+        ) : null}
+      </View>
       <DetailBlock
         label="Tarjeta RFID"
         value={formatCardUid(event.cardUid)}
@@ -194,6 +248,35 @@ export function AccessEventDetailScreen({
           styles={styles}
         />
       ) : null}
+
+      {shareError !== null ? (
+        <View style={styles.shareErrorBox} role="alert">
+          <Text style={styles.shareErrorText}>{shareError}</Text>
+        </View>
+      ) : null}
+
+      <Pressable
+        onPress={() => void handleShareReceipt()}
+        disabled={sharing}
+        accessibilityRole="button"
+        accessibilityLabel="Compartir comprobante del evento"
+        accessibilityHint="Comparte un resumen del evento de acceso con otras aplicaciones"
+        accessibilityState={{ disabled: sharing, busy: sharing }}
+        style={({ pressed }) => [
+          styles.shareButton,
+          pressed && !sharing && styles.shareButtonPressed,
+          sharing && styles.shareButtonDisabled,
+        ]}
+      >
+        {sharing ? (
+          <View style={styles.shareButtonContent}>
+            <ActivityIndicator size="small" color={colors.brandContrast} />
+            <Text style={styles.shareButtonText}>Compartiendo…</Text>
+          </View>
+        ) : (
+          <Text style={styles.shareButtonText}>Compartir comprobante</Text>
+        )}
+      </Pressable>
     </ScrollView>
   )
 }
@@ -282,6 +365,85 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 22,
       color: colors.textSecondary,
       marginTop: spacing.md,
+    },
+    syncPill: {
+      alignSelf: 'flex-start',
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      paddingHorizontal: spacing.sm + 2,
+      paddingVertical: spacing.xs,
+      marginTop: spacing.sm,
+    },
+    syncPillDelayed: {
+      backgroundColor: colors.warningSoft,
+      borderColor: colors.warningBorder,
+    },
+    syncPillRealtime: {
+      backgroundColor: colors.grantedSoft,
+      borderColor: colors.grantedBorder,
+    },
+    syncPillUnavailable: {
+      backgroundColor: colors.surfaceElevated,
+      borderColor: colors.borderSubtle,
+    },
+    syncPillText: {
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    syncPillTextDelayed: {
+      color: colors.warningText,
+    },
+    syncPillTextRealtime: {
+      color: colors.grantedText,
+    },
+    syncPillTextUnavailable: {
+      color: colors.textMuted,
+    },
+    syncHint: {
+      fontSize: 13,
+      lineHeight: 19,
+      color: colors.textSecondary,
+      marginTop: spacing.sm,
+    },
+    shareErrorBox: {
+      backgroundColor: colors.deniedSoft,
+      borderColor: colors.deniedBorder,
+      borderWidth: 1,
+      borderRadius: radii.md,
+      padding: spacing.md,
+      marginTop: spacing.sm,
+    },
+    shareErrorText: {
+      fontSize: 13,
+      lineHeight: 18,
+      color: colors.deniedText,
+      fontWeight: '500',
+    },
+    shareButton: {
+      minHeight: 48,
+      borderRadius: radii.md,
+      backgroundColor: colors.brand,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      marginTop: spacing.sm,
+    },
+    shareButtonPressed: {
+      backgroundColor: colors.brandHover,
+    },
+    shareButtonDisabled: {
+      opacity: 0.7,
+    },
+    shareButtonContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    shareButtonText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.brandContrast,
     },
   })
 }

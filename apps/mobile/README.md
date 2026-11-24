@@ -10,6 +10,7 @@ Aplicación móvil para empleados del **Sistema de Control de Acceso (Accesa)**,
 - **Requiere conexión a Internet:** No implementa base de datos local *offline-first* (esa capacidad corresponde únicamente al controlador físico ESP32-S3).
 - **Idioma y zona horaria:** Interfaz de usuario y mensajes en español; identificadores de código en inglés. Fechas y horas formateadas en `America/Tijuana` (`src/utils/formatters.ts`) y 6 áreas registradas mapeadas en `src/utils/areaLabels.ts`.
 - **Resiliencia HTTP y validación:** `apiFetch` (`src/api/httpClient.ts`) adjunta `Authorization: Bearer <token>`, aplica un timeout de `35 000 ms` (`REQUEST_TIMEOUT_MS`) y traduce errores de timeout (`TIMEOUT`) o red (`NETWORK_ERROR`) a `MobileApiError`; `validateLoginForm` (`src/utils/validation.ts`) y `errorMessages.ts` presentan mensajes claros en pantalla.
+- **Experiencia de consulta:** El historial agrupa eventos por día en `America/Tijuana` (*Hoy*, *Ayer* o fecha completa), muestra una tarjeta de resumen de actividad, destaca eventos con sincronización diferida del ESP32-S3 (desfase `>= 60 s` entre `occurredAt` y `receivedAt`), incluye un skeleton en la carga inicial, permite compartir un comprobante desde el detalle del evento y solicita confirmación antes de cerrar sesión.
 
 ## Identidad visual y modo oscuro
 
@@ -67,6 +68,8 @@ apps/mobile/
 │   │   ├── DecisionBadge.tsx          # Insignia "Acceso permitido" / "Acceso denegado"
 │   │   ├── EmptyState.tsx             # Estado vacío o error con botón de reintentar
 │   │   ├── EventListItem.tsx          # Tarjeta resumen de un evento en el historial
+│   │   ├── HistorySkeleton.tsx        # Esqueleto de carga inicial para el historial
+│   │   ├── HistorySummaryCard.tsx     # Tarjeta con resumen de actividad del historial
 │   │   └── ThemeToggleButton.tsx      # Selector manual entre modo claro y oscuro
 │   ├── config/
 │   │   ├── env.ts                     # Validación Zod de variables EXPO_PUBLIC_* y valores por defecto
@@ -89,17 +92,22 @@ apps/mobile/
 │   ├── types/
 │   │   └── assets.d.ts                # Declaración TypeScript para imports *.png
 │   └── utils/
+│       ├── accessHistory.ts           # Agrupación diaria, resumen y cálculo de desfase offline
 │       ├── areaLabels.ts              # Etiquetas de decisión, motivos y las 6 áreas registradas
+│       ├── confirmAction.ts           # Diálogo de confirmación multiplataforma (Alert / confirm)
 │       ├── errorMessages.ts           # Traducción uniforme de errores Auth, historial y detalle
+│       ├── eventReceipt.ts            # Formato de comprobante compartible del evento
 │       ├── formatters.ts              # Formato de UID RFID y fechas/horas en America/Tijuana
 │       └── validation.ts              # Validación de correo y contraseña en LoginScreen
 └── tests/
     ├── accessEventsApi.test.ts        # Pruebas de listMyAccessEvents y getMyAccessEventById
+    ├── accessHistory.test.ts          # Pruebas de agrupación diaria, resumen y desfase offline
     ├── areaLabels.test.ts             # Pruebas de etiquetas y las 6 áreas
     ├── authApi.test.ts                # Pruebas de getMe (/auth/me)
     ├── brandAssets.test.ts            # Pruebas de selección de logos claro/oscuro
     ├── env.test.ts                    # Pruebas de variables de entorno
     ├── errorMessages.test.ts          # Pruebas de toSignInMessage, toHistoryError y toDetailError
+    ├── eventReceipt.test.ts           # Pruebas de buildEventReceiptMessage
     ├── formatters.test.ts             # Pruebas de UID y formato horario
     ├── httpClient.test.ts             # Pruebas de apiFetch (sesión, 200, error HTTP, timeout y red)
     ├── storage.test.ts                # Pruebas de createKeyValueStorage (iOS/Android/web)

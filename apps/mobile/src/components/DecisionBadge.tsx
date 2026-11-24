@@ -19,11 +19,16 @@ export function DecisionBadge({ decision }: DecisionBadgeProps) {
   const { colors } = useTheme()
   const styles = useMemo(() => createStyles(colors), [colors])
   const isGranted = decision === 'granted'
+  const label = DECISION_LABELS[decision]
 
   return (
-    <View style={[styles.badge, isGranted ? styles.granted : styles.denied]}>
+    <View
+      accessible
+      accessibilityLabel={label}
+      style={[styles.badge, isGranted ? styles.granted : styles.denied]}
+    >
       <Text style={[styles.label, isGranted ? styles.grantedText : styles.deniedText]}>
-        {DECISION_LABELS[decision]}
+        {label}
       </Text>
     </View>
   )
