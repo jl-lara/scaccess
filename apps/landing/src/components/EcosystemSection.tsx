@@ -1,4 +1,7 @@
+import { useState } from 'react'
 import { Check, LayoutDashboard, Lock, Smartphone } from 'lucide-react'
+import { FLOORPLAN_ZONES, MOBILE_EVENTS } from '../data/landingContent'
+import { Reveal } from './Reveal'
 
 const ADMIN_HIGHLIGHTS = [
   'Croquis interactivo de áreas con ocupación en vivo',
@@ -7,6 +10,14 @@ const ADMIN_HIGHLIGHTS = [
 ] as const
 
 export function EcosystemSection() {
+  const [selectedZoneId, setSelectedZoneId] = useState<string>('redes')
+  const [selectedEventId, setSelectedEventId] = useState<string>(MOBILE_EVENTS[0]!.id)
+
+  const selectedZone =
+    FLOORPLAN_ZONES.find((zone) => zone.id === selectedZoneId) ?? FLOORPLAN_ZONES[0]!
+  const activeEvent =
+    MOBILE_EVENTS.find((evt) => evt.id === selectedEventId) ?? MOBILE_EVENTS[0]!
+
   return (
     <section id="ecosistema" className="section-titanium" aria-labelledby="ecosystem-heading">
       <div className="container">
@@ -21,7 +32,7 @@ export function EcosystemSection() {
         </div>
 
         <div className="bento-grid">
-          <article className="bento-featured">
+          <Reveal as="article" className="bento-featured" delayMs={0}>
             <div>
               <span className="bento-icon-wrap">
                 <LayoutDashboard size={22} aria-hidden="true" />
@@ -47,27 +58,44 @@ export function EcosystemSection() {
                 <span className="floorplan-badge">4 áreas activas</span>
               </div>
               <div className="floorplan-zones">
-                <div className="floorplan-zone">
-                  <p className="floorplan-zone-name">Laboratorio Redes</p>
-                  <p className="floorplan-zone-meta">Aforo 14 / 24 · ESP32-01</p>
-                </div>
-                <div className="floorplan-zone">
-                  <p className="floorplan-zone-name">Centro de Datos</p>
-                  <p className="floorplan-zone-meta">Aforo 2 / 4 · ESP32-02</p>
-                </div>
-                <div className="floorplan-zone">
-                  <p className="floorplan-zone-name">Taller Prototipos</p>
-                  <p className="floorplan-zone-meta">Aforo 9 / 18 · ESP32-03</p>
-                </div>
-                <div className="floorplan-zone">
-                  <p className="floorplan-zone-name">Archivo Técnico</p>
-                  <p className="floorplan-zone-meta">Aforo 1 / 6 · ESP32-04</p>
-                </div>
+                {FLOORPLAN_ZONES.map((zone) => {
+                  const isSelected = zone.id === selectedZone.id
+                  const occupancyPct = Math.round((zone.currentOccupancy / zone.capacity) * 100)
+                  return (
+                    <button
+                      key={zone.id}
+                      type="button"
+                      className="floorplan-zone-btn"
+                      aria-pressed={isSelected}
+                      onClick={() => setSelectedZoneId(zone.id)}
+                    >
+                      <p className="floorplan-zone-name">{zone.name}</p>
+                      <p className="floorplan-zone-meta">
+                        Aforo {zone.currentOccupancy} / {zone.capacity} · {zone.deviceId}
+                      </p>
+                      <div className="floorplan-bar" aria-hidden="true">
+                        <span
+                          className="floorplan-bar-fill"
+                          style={{ width: `${occupancyPct}%` }}
+                        />
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+              <div
+                className="floorplan-inspector panel-fade-in"
+                key={selectedZone.id}
+                aria-live="polite"
+              >
+                <p className="floorplan-inspector-code">{selectedZone.code}</p>
+                <p className="floorplan-inspector-sync">{selectedZone.syncState}</p>
+                <p className="floorplan-inspector-event">{selectedZone.lastEvent}</p>
               </div>
             </div>
-          </article>
+          </Reveal>
 
-          <article className="bento-secondary-wide">
+          <Reveal as="article" className="bento-secondary-wide" delayMs={80}>
             <div>
               <span className="bento-icon-wrap">
                 <Smartphone size={22} aria-hidden="true" />
@@ -80,18 +108,35 @@ export function EcosystemSection() {
             </div>
 
             <div className="mobile-log-preview" aria-label="Ejemplo de historial personal móvil">
-              <div className="mobile-log-item">
-                <span className="mobile-log-place">Laboratorio de Telemática B2</span>
-                <span className="mobile-log-time">Hoy · 08:14</span>
-              </div>
-              <div className="mobile-log-item">
-                <span className="mobile-log-place">Acceso Principal Edificio C</span>
-                <span className="mobile-log-time">Ayer · 17:42</span>
+              {MOBILE_EVENTS.map((evt) => {
+                const isSelected = evt.id === activeEvent.id
+                return (
+                  <button
+                    key={evt.id}
+                    type="button"
+                    className="mobile-log-btn"
+                    aria-pressed={isSelected}
+                    onClick={() => setSelectedEventId(evt.id)}
+                  >
+                    <span className="mobile-log-place">{evt.area}</span>
+                    <span className="mobile-log-time">{evt.timestamp}</span>
+                  </button>
+                )
+              })}
+
+              <div
+                className="mobile-log-detail panel-fade-in"
+                key={activeEvent.id}
+                aria-live="polite"
+              >
+                <span className="mobile-log-decision">{activeEvent.decision}</span>
+                <span className="mobile-log-uid">UID {activeEvent.cardUid}</span>
+                <span className="mobile-log-method">{activeEvent.method}</span>
               </div>
             </div>
-          </article>
+          </Reveal>
 
-          <article className="bento-secondary-compact">
+          <Reveal as="article" className="bento-secondary-compact" delayMs={150}>
             <div>
               <span className="bento-icon-wrap">
                 <Lock size={22} aria-hidden="true" />
@@ -109,7 +154,7 @@ export function EcosystemSection() {
               <span className="security-tag">PostgreSQL + RLS</span>
               <span className="security-tag">Bitácora inmutable</span>
             </div>
-          </article>
+          </Reveal>
         </div>
       </div>
     </section>

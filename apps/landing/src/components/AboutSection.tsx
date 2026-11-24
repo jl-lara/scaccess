@@ -1,11 +1,12 @@
-import { ABOUT_PRINCIPLES } from '../data/landingContent'
+import { ABOUT_PRINCIPLES, TECH_STACK_PILLS } from '../data/landingContent'
+import { Reveal } from './Reveal'
 
 export function AboutSection() {
   return (
     <section id="nosotros" className="section-titanium" aria-labelledby="about-heading">
       <div className="container">
         <div className="about-layout">
-          <div className="section-header">
+          <Reveal className="section-header">
             <h2 id="about-heading" className="section-title">
               Ingeniería nacida en la Universidad Tecnológica de Tijuana.
             </h2>
@@ -32,14 +33,27 @@ export function AboutSection() {
                 Proyecto de ingeniería · Universidad Tecnológica de Tijuana (UTT)
               </span>
             </div>
-          </div>
+
+            <div className="tech-stack-strip" aria-label="Stack tecnológico de Accesa">
+              {TECH_STACK_PILLS.map((pill) => (
+                <span key={pill} className="tech-stack-pill">
+                  {pill}
+                </span>
+              ))}
+            </div>
+          </Reveal>
 
           <div className="about-principles">
-            {ABOUT_PRINCIPLES.map((principle) => (
-              <article key={principle.title} className="about-principle">
+            {ABOUT_PRINCIPLES.map((principle, index) => (
+              <Reveal
+                key={principle.title}
+                as="article"
+                className="about-principle"
+                delayMs={index * 80}
+              >
                 <h3>{principle.title}</h3>
                 <p>{principle.description}</p>
-              </article>
+              </Reveal>
             ))}
           </div>
         </div>
