@@ -41,6 +41,17 @@ if (typeof window !== 'undefined' && !('IntersectionObserver' in window)) {
   })
 }
 
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'scrollTo', {
+    writable: true,
+    configurable: true,
+    value: () => {},
+  })
+}
+
 afterEach(() => {
   cleanup()
+  if (typeof window !== 'undefined') {
+    window.history.replaceState({}, '', '/')
+  }
 })

@@ -1,10 +1,11 @@
 import { WORKFLOW_STEPS } from '../data/landingContent'
+import { Reveal } from './Reveal'
 
 export function WorkflowSection() {
   return (
     <section id="flujo" className="section-white" aria-labelledby="workflow-heading">
       <div className="container">
-        <div className="section-header">
+        <Reveal className="section-header">
           <h2 id="workflow-heading" className="section-title">
             Del registro de credenciales a la auditoría continua.
           </h2>
@@ -12,17 +13,23 @@ export function WorkflowSection() {
             Cuatro pasos operativos para desplegar control de acceso físico sin dependencias
             frágiles de red.
           </p>
-        </div>
+        </Reveal>
 
         <ol className="workflow-list">
-          {WORKFLOW_STEPS.map((step) => (
-            <li key={step.stepNumber} className="workflow-step">
+          {WORKFLOW_STEPS.map((step, index) => (
+            <Reveal
+              key={step.stepNumber}
+              as="li"
+              className="workflow-step"
+              delayMs={index * 80}
+            >
               <span className="workflow-step-num" aria-hidden="true">
                 {step.stepNumber}
               </span>
               <h3 className="workflow-step-title">{step.title}</h3>
               <p className="workflow-step-desc">{step.description}</p>
-            </li>
+              <span className="workflow-deliverable">{step.deliverable}</span>
+            </Reveal>
           ))}
         </ol>
       </div>

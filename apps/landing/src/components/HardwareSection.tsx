@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { Cpu, Database, Radio, RefreshCw } from 'lucide-react'
 import { HARDWARE_SPECS } from '../data/landingContent'
 import { useScrollProgress } from '../hooks/useScrollProgress'
+import { Reveal } from './Reveal'
 
 export function HardwareSection() {
   const { ref, progress } = useScrollProgress<HTMLDivElement>(0.15)
@@ -14,7 +15,7 @@ export function HardwareSection() {
     <section id="hardware" className="section-dark" aria-labelledby="hardware-heading">
       <div className="container">
         <div className="hardware-layout">
-          <div className="section-header">
+          <Reveal className="section-header">
             <h2 id="hardware-heading" className="section-title">
               Arquitectura offline-first pensada para la puerta física.
             </h2>
@@ -46,7 +47,7 @@ export function HardwareSection() {
                 </span>
               </li>
             </ul>
-          </div>
+          </Reveal>
 
           <div ref={ref} className="hardware-panel" style={panelStyle}>
             <div className="hardware-panel-head">
@@ -55,7 +56,7 @@ export function HardwareSection() {
             </div>
 
             <div className="hardware-pipeline">
-              <div className="hardware-stage-row">
+              <Reveal className="hardware-stage-row" delayMs={0}>
                 <Radio size={20} className="hardware-stage-icon" aria-hidden="true" />
                 <div>
                   <h3 className="hardware-stage-title">1. Lectura RFID 13.56 MHz</h3>
@@ -63,9 +64,9 @@ export function HardwareSection() {
                     Captura del UID sin contacto y verificación inmediata contra la tabla local.
                   </p>
                 </div>
-              </div>
+              </Reveal>
 
-              <div className="hardware-stage-row">
+              <Reveal className="hardware-stage-row" delayMs={60}>
                 <Cpu size={20} className="hardware-stage-icon" aria-hidden="true" />
                 <div>
                   <h3 className="hardware-stage-title">2. Decisión autónoma y relevador</h3>
@@ -73,9 +74,9 @@ export function HardwareSection() {
                     Acciona la cerradura o registra el rechazo incluso sin enlace Wi-Fi activo.
                   </p>
                 </div>
-              </div>
+              </Reveal>
 
-              <div className="hardware-stage-row">
+              <Reveal className="hardware-stage-row" delayMs={120}>
                 <Database size={20} className="hardware-stage-icon" aria-hidden="true" />
                 <div>
                   <h3 className="hardware-stage-title">3. Resguardo en cola no volátil</h3>
@@ -83,9 +84,9 @@ export function HardwareSection() {
                     Conserva eventos pendientes y tarjetas desconocidas con marca occurred_at.
                   </p>
                 </div>
-              </div>
+              </Reveal>
 
-              <div className="hardware-stage-row">
+              <Reveal className="hardware-stage-row" delayMs={180}>
                 <RefreshCw size={20} className="hardware-stage-icon" aria-hidden="true" />
                 <div>
                   <h3 className="hardware-stage-title">4. Entrega idempotente al backend</h3>
@@ -93,7 +94,7 @@ export function HardwareSection() {
                     Al reconectar, transmite lotes deduplicados por client_event_id hacia PostgreSQL.
                   </p>
                 </div>
-              </div>
+              </Reveal>
             </div>
 
             <div className="hardware-code-strip" aria-label="Estructura resumida de evento">
@@ -104,8 +105,8 @@ export function HardwareSection() {
         </div>
 
         <dl className="spec-strip">
-          {HARDWARE_SPECS.map((spec) => (
-            <div key={spec.term} className="spec-item">
+          {HARDWARE_SPECS.map((spec, index) => (
+            <Reveal key={spec.term} as="div" delayMs={index * 70} className="spec-item">
               <dt className="spec-term">{spec.term}</dt>
               <dd className="spec-value" style={{ marginLeft: 0 }}>
                 {spec.value}
@@ -113,7 +114,7 @@ export function HardwareSection() {
               <dd className="spec-detail" style={{ marginLeft: 0 }}>
                 {spec.detail}
               </dd>
-            </div>
+            </Reveal>
           ))}
         </dl>
       </div>

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 
 interface ScrollProgressResult<T extends HTMLElement> {
-  ref: React.RefObject<T | null>
+  ref: RefObject<T | null>
   progress: number
   isVisible: boolean
 }
@@ -86,4 +86,50 @@ export function useScrollProgress<T extends HTMLElement>(
   }, [threshold])
 
   return { ref, progress, isVisible }
+}
+
+export function usePageScrollProgress(): number {
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || prefersReducedMotion()) {
+      setProgress(0)
+      return
+    }
+
+    let frameId: number | null = null
+
+    const update = () => {
+      frameId = null
+      const doc = document.documentElement
+      const scrollable = doc.scrollHeight - window.innerHeight
+      if (scrollable <= 0) {
+        setProgress(0)
+        return
+      }
+      const raw = window.scrollY / scrollable
+      setProgress(Math.min(1, Math.max(0, raw)))
+    }
+
+    const schedule = () => {
+      if (frameId !== null) {
+        return
+      }
+      frameId = window.requestAnimationFrame(update)
+    }
+
+    schedule()
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule, { passive: true })
+
+    return () => {
+      window.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId)
+      }
+    }
+  }, [])
+
+  return progress
 }

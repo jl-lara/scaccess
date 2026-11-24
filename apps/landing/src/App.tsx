@@ -1,13 +1,12 @@
-import { AboutSection } from './components/AboutSection'
-import { ContactSection } from './components/ContactSection'
-import { EcosystemSection } from './components/EcosystemSection'
 import { Footer } from './components/Footer'
-import { HardwareSection } from './components/HardwareSection'
-import { HeroSection } from './components/HeroSection'
 import { Navbar } from './components/Navbar'
-import { WorkflowSection } from './components/WorkflowSection'
+import { RouterProvider, useRouter } from './lib/router'
+import { ContactPage } from './pages/ContactPage'
+import { HomePage } from './pages/HomePage'
 
-export function App() {
+function AppLayout() {
+  const { route } = useRouter()
+
   return (
     <>
       <a href="#contenido-principal" className="skip-link">
@@ -15,15 +14,23 @@ export function App() {
       </a>
       <Navbar />
       <main id="contenido-principal">
-        <HeroSection />
-        <HardwareSection />
-        <EcosystemSection />
-        <WorkflowSection />
-        <AboutSection />
-        <ContactSection />
+        {route === '/contacto' ? <ContactPage /> : <HomePage />}
       </main>
       <Footer />
     </>
   )
 }
+
+interface AppProps {
+  initialPath?: string
+}
+
+export function App({ initialPath }: AppProps) {
+  return (
+    <RouterProvider initialPath={initialPath}>
+      <AppLayout />
+    </RouterProvider>
+  )
+}
+
 export default App
