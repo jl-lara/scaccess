@@ -49,6 +49,45 @@ function assertBinary(command) {
   return result.stdout.trim()
 }
 
+function resolvePostgres17Binary(command) {
+  if (process.platform === 'linux') {
+    const versionedBinary = `/usr/lib/postgresql/17/bin/${command}`
+    const result = spawnSync(versionedBinary, ['--version'], { encoding: 'utf8' })
+    if (!result.error && result.status === 0) return versionedBinary
+  }
+  return command
+}
+
+function validateBackupUrl(dbUrl) {
+  let parsed
+  try {
+    parsed = new URL(dbUrl)
+  } catch {
+    console.error('[db:backup] SUPABASE_DB_BACKUP_URL no tiene un formato URI valido.')
+    process.exit(1)
+  }
+  if (parsed.protocol !== 'postgresql:' && parsed.protocol !== 'postgres:') {
+    console.error('[db:backup] SUPABASE_DB_BACKUP_URL debe usar el esquema postgresql://.')
+    process.exit(1)
+  }
+  if (parsed.port !== '5432' || !parsed.hostname.includes('.pooler.supabase.com')) {
+    console.error(
+      '[db:backup] SUPABASE_DB_BACKUP_URL debe usar el Session Pooler de Supabase (puerto 5432).',
+    )
+    process.exit(1)
+  }
+  if (!parsed.username.startsWith('postgres.') || parsed.username === 'postgres.') {
+    console.error(
+      '[db:backup] El usuario del pooler debe tener el formato postgres.<project-ref>.',
+    )
+    process.exit(1)
+  }
+  if (!parsed.password) {
+    console.error('[db:backup] SUPABASE_DB_BACKUP_URL no incluye una contraseña.')
+    process.exit(1)
+  }
+}
+
 function formatUtcTimestamp(date = new Date()) {
   const pad = (value) => String(value).padStart(2, '0')
   return (
@@ -78,9 +117,12 @@ function main() {
     )
     process.exit(1)
   }
+  validateBackupUrl(dbUrl)
 
-  const pgDumpVersion = assertBinary('pg_dump')
-  assertBinary('pg_restore')
+  const pgDumpBinary = resolvePostgres17Binary('pg_dump')
+  const pgRestoreBinary = resolvePostgres17Binary('pg_restore')
+  const pgDumpVersion = assertBinary(pgDumpBinary)
+  assertBinary(pgRestoreBinary)
 
   const backupsDir = path.join(rootDir, 'backups')
   mkdirSync(backupsDir, { recursive: true })
@@ -92,7 +134,7 @@ function main() {
   console.log(`[db:backup] Generando respaldo en ${path.relative(rootDir, dumpFile)}...`)
 
   const dumpResult = spawnSync(
-    'pg_dump',
+    pgDumpBinary,
     [
       dbUrl,
       '--format=custom',
@@ -102,11 +144,16 @@ function main() {
       '--schema=public',
       `--file=${dumpFile}`,
     ],
-    { stdio: 'inherit' },
+    {
+      stdio: 'inherit',
+      env: { ...process.env, PGSSLMODE: process.env.PGSSLMODE || 'require' },
+    },
   )
 
   if (dumpResult.status !== 0) {
-    console.error('[db:backup] Error al ejecutar pg_dump.')
+    console.error(
+      '[db:backup] Error al ejecutar pg_dump. Verifica que SUPABASE_DB_BACKUP_URL use el usuario postgres.<project-ref>, la contrasena actual de Postgres y el puerto 5432 del Session Pooler.',
+    )
     process.exit(dumpResult.status ?? 1)
   }
 
@@ -116,7 +163,7 @@ function main() {
     process.exit(1)
   }
 
-  const listResult = spawnSync('pg_restore', ['--list', dumpFile], {
+  const listResult = spawnSync(pgRestoreBinary, ['--list', dumpFile], {
     encoding: 'utf8',
   })
   if (listResult.status !== 0) {
