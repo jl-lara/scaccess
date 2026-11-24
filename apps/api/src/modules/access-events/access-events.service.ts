@@ -10,9 +10,16 @@ import { ApiError } from '../../utils/ApiError.js'
 import {
   buildPaginatedResponse,
   toPrismaSkipTake,
-  type PaginationQuery,
 } from '../../utils/pagination.js'
-import type { AccessEventListQuery } from './access-events.schemas.js'
+import type {
+  AccessEventListQuery,
+  MyAccessEventsQuery,
+} from './access-events.schemas.js'
+
+const accessEventInclude = {
+  area: { select: { id: true, code: true, name: true } },
+  device: { select: { id: true, deviceCode: true, name: true, location: true } },
+} as const
 
 interface AccessEventRecord {
   id: string
@@ -30,6 +37,13 @@ interface AccessEventRecord {
   deviceSequence: bigint | null
   metadata: unknown
   createdAt: Date
+  area?: { id: string; code: string; name: string } | null
+  device?: {
+    id: string
+    deviceCode: string
+    name: string
+    location: string | null
+  } | null
 }
 
 function toAccessEventDto(event: AccessEventRecord): AccessEventDto {
@@ -50,6 +64,25 @@ function toAccessEventDto(event: AccessEventRecord): AccessEventDto {
       event.deviceSequence === null ? null : String(event.deviceSequence),
     metadata: event.metadata,
     createdAt: event.createdAt.toISOString(),
+    ...(event.area
+      ? {
+          area: {
+            id: event.area.id,
+            code: event.area.code,
+            name: event.area.name,
+          },
+        }
+      : {}),
+    ...(event.device
+      ? {
+          device: {
+            id: event.device.id,
+            deviceCode: event.device.deviceCode,
+            name: event.device.name,
+            location: event.device.location,
+          },
+        }
+      : {}),
   }
 }
 
@@ -93,16 +126,20 @@ function buildAccessEventWhere(
   return where
 }
 
-export async function listAccessEvents(
-  query: AccessEventListQuery,
-): Promise<PaginatedResponse<AccessEventDto>> {
+function assertValidDateRange(from?: string, to?: string): void {
   if (
-    query.from !== undefined &&
-    query.to !== undefined &&
-    new Date(query.from).getTime() > new Date(query.to).getTime()
+    from !== undefined &&
+    to !== undefined &&
+    new Date(from).getTime() > new Date(to).getTime()
   ) {
     throw ApiError.badRequest('from must be earlier than or equal to to')
   }
+}
+
+export async function listAccessEvents(
+  query: AccessEventListQuery,
+): Promise<PaginatedResponse<AccessEventDto>> {
+  assertValidDateRange(query.from, query.to)
 
   const prisma = getPrismaClient()
   const where = buildAccessEventWhere(query)
@@ -110,6 +147,7 @@ export async function listAccessEvents(
   const [events, total] = await Promise.all([
     prisma.accessEvent.findMany({
       where,
+      include: accessEventInclude,
       orderBy: { occurredAt: 'desc' },
       ...toPrismaSkipTake(query),
     }),
@@ -120,7 +158,10 @@ export async function listAccessEvents(
 }
 
 export async function getAccessEvent(id: string): Promise<AccessEventDto> {
-  const event = await getPrismaClient().accessEvent.findUnique({ where: { id } })
+  const event = await getPrismaClient().accessEvent.findUnique({
+    where: { id },
+    include: accessEventInclude,
+  })
 
   if (!event) {
     throw ApiError.notFound('Access event not found')
@@ -131,14 +172,26 @@ export async function getAccessEvent(id: string): Promise<AccessEventDto> {
 
 export async function listMyAccessEvents(
   employeeId: string,
-  query: PaginationQuery,
+  query: MyAccessEventsQuery,
 ): Promise<PaginatedResponse<AccessEventDto>> {
+  assertValidDateRange(query.from, query.to)
+
   const prisma = getPrismaClient()
-  const where: Prisma.AccessEventWhereInput = { employeeId }
+  // Always enforce the authenticated employeeId regardless of query contents.
+  const where = buildAccessEventWhere({
+    page: query.page,
+    pageSize: query.pageSize,
+    areaId: query.areaId,
+    decision: query.decision,
+    from: query.from,
+    to: query.to,
+    employeeId,
+  })
 
   const [events, total] = await Promise.all([
     prisma.accessEvent.findMany({
       where,
+      include: accessEventInclude,
       orderBy: { occurredAt: 'desc' },
       ...toPrismaSkipTake(query),
     }),
@@ -152,7 +205,10 @@ export async function getMyAccessEvent(
   employeeId: string,
   id: string,
 ): Promise<AccessEventDto> {
-  const event = await getPrismaClient().accessEvent.findUnique({ where: { id } })
+  const event = await getPrismaClient().accessEvent.findUnique({
+    where: { id },
+    include: accessEventInclude,
+  })
 
   // A missing event and another employee's event intentionally share the same
   // response to prevent enumeration of the global history.

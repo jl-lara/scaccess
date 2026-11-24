@@ -148,6 +148,14 @@ const accessEventPageResponse = jsonResponse(
   'Pagina de eventos de acceso.',
   schemaRef('AccessEventPage'),
 )
+const myProfileResponse = jsonResponse(
+  'Perfil del empleado autenticado.',
+  schemaRef('MyProfileResponse'),
+)
+const myPermissionsResponse = jsonResponse(
+  'Permisos de acceso del empleado autenticado.',
+  schemaRef('MyPermissionsResponse'),
+)
 const dashboardResponse = jsonResponse(
   'Resumen agregado para el dashboard.',
   schemaRef('DashboardSummary'),
@@ -695,6 +703,37 @@ export const openApiDocument: OpenApiDocument = {
           updatedAt: { type: 'string', format: 'date-time' },
         },
       },
+      EmployeeStatus: {
+        type: 'string',
+        enum: ['active', 'inactive', 'suspended'],
+      },
+      CredentialStatus: {
+        type: 'string',
+        enum: ['active', 'blocked', 'lost', 'retired'],
+      },
+      AccessDecision: {
+        type: 'string',
+        enum: ['granted', 'denied'],
+      },
+      AccessEventAreaSummary: {
+        type: 'object',
+        required: ['id', 'code', 'name'],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          code: { type: 'string' },
+          name: { type: 'string' },
+        },
+      },
+      AccessEventDeviceSummary: {
+        type: 'object',
+        required: ['id', 'deviceCode', 'name', 'location'],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          deviceCode: { type: 'string' },
+          name: { type: 'string' },
+          location: { type: ['string', 'null'] },
+        },
+      },
       AccessEvent: {
         type: 'object',
         required: [
@@ -761,6 +800,8 @@ export const openApiDocument: OpenApiDocument = {
           },
           metadata: { description: 'Contexto adicional enviado por el dispositivo.' },
           createdAt: { type: 'string', format: 'date-time' },
+          area: schemaRef('AccessEventAreaSummary'),
+          device: schemaRef('AccessEventDeviceSummary'),
         },
       },
       AccessEventPage: {
@@ -769,6 +810,98 @@ export const openApiDocument: OpenApiDocument = {
         properties: {
           data: { type: 'array', items: schemaRef('AccessEvent') },
           pagination: schemaRef('PaginationMeta'),
+        },
+      },
+      MyEmployeeProfile: {
+        type: 'object',
+        required: [
+          'id',
+          'employeeCode',
+          'firstName',
+          'lastName',
+          'email',
+          'department',
+          'position',
+          'status',
+          'hiredAt',
+        ],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          employeeCode: { type: 'string', examples: ['E-0001'] },
+          firstName: { type: 'string' },
+          lastName: { type: 'string' },
+          email: { type: ['string', 'null'], format: 'email' },
+          department: { type: ['string', 'null'] },
+          position: { type: ['string', 'null'] },
+          status: schemaRef('EmployeeStatus'),
+          hiredAt: { type: ['string', 'null'], format: 'date' },
+        },
+      },
+      MyCredentialSummary: {
+        type: 'object',
+        required: ['id', 'cardUid', 'label', 'status', 'issuedAt', 'deactivatedAt'],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          cardUid: {
+            type: 'string',
+            pattern: '^[0-9A-F]{8,32}$',
+            examples: ['A1B2C3D4'],
+          },
+          label: { type: ['string', 'null'] },
+          status: schemaRef('CredentialStatus'),
+          issuedAt: { type: ['string', 'null'], format: 'date-time' },
+          deactivatedAt: { type: ['string', 'null'], format: 'date-time' },
+        },
+      },
+      MyProfileResponse: {
+        type: 'object',
+        required: ['account', 'employee', 'credentials'],
+        properties: {
+          account: schemaRef('UserAccount'),
+          employee: schemaRef('MyEmployeeProfile'),
+          credentials: {
+            type: 'array',
+            items: schemaRef('MyCredentialSummary'),
+          },
+        },
+      },
+      MyAreaSummary: {
+        type: 'object',
+        required: ['id', 'code', 'name', 'description', 'isActive', 'timezone'],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          code: { type: 'string', examples: ['MAIN_ENTRANCE'] },
+          name: { type: 'string' },
+          description: { type: ['string', 'null'] },
+          isActive: { type: 'boolean' },
+          timezone: { type: 'string', examples: ['America/Tijuana'] },
+        },
+      },
+      MyAccessPermission: {
+        type: 'object',
+        required: ['id', 'areaId', 'validFrom', 'validTo', 'schedule', 'revokedAt', 'area'],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          areaId: { type: 'string', format: 'uuid' },
+          validFrom: { type: ['string', 'null'], format: 'date-time' },
+          validTo: { type: ['string', 'null'], format: 'date-time' },
+          schedule: {
+            type: ['object', 'null'],
+            description: 'Horario permitido; estructura libre.',
+            additionalProperties: true,
+          },
+          revokedAt: { type: ['string', 'null'], format: 'date-time' },
+          area: schemaRef('MyAreaSummary'),
+        },
+      },
+      MyPermissionsResponse: {
+        type: 'object',
+        required: ['data'],
+        properties: {
+          data: {
+            type: 'array',
+            items: schemaRef('MyAccessPermission'),
+          },
         },
       },
       DashboardSummary: {
@@ -1709,6 +1842,49 @@ export const openApiDocument: OpenApiDocument = {
         },
       },
     },
+    '/me/profile': {
+      get: {
+        tags: ['Historial'],
+        summary: 'Obtener mi perfil de empleado',
+        description:
+          'App movil. Devuelve la cuenta autenticada, el perfil del empleado ' +
+          'vinculado y sus credenciales RFID.',
+        operationId: 'getMyProfile',
+        security: supabaseSecurity,
+        responses: {
+          '200': myProfileResponse,
+          '401': unauthorizedResponse,
+          '403': forbiddenResponse,
+          '404': notFoundResponse,
+        },
+      },
+    },
+    '/me/permissions': {
+      get: {
+        tags: ['Historial'],
+        summary: 'Listar mis permisos de acceso',
+        description:
+          'App movil. Requiere una cuenta vinculada a un empleado; devuelve ' +
+          'los permisos asignados al empleado autenticado.',
+        operationId: 'listMyPermissions',
+        security: supabaseSecurity,
+        parameters: [
+          {
+            name: 'activeOnly',
+            in: 'query',
+            required: false,
+            description: 'Filtra solo permisos vigentes y no revocados.',
+            schema: { type: 'boolean', default: true },
+          },
+        ],
+        responses: {
+          '200': myPermissionsResponse,
+          '400': validationResponse,
+          '401': unauthorizedResponse,
+          '403': forbiddenResponse,
+        },
+      },
+    },
     '/me/access-events': {
       get: {
         tags: ['Historial'],
@@ -1718,7 +1894,35 @@ export const openApiDocument: OpenApiDocument = {
           'filtra siempre por el empleado autenticado.',
         operationId: 'listMyAccessEvents',
         security: supabaseSecurity,
-        parameters: [...paginationParameters],
+        parameters: [
+          ...paginationParameters,
+          {
+            name: 'areaId',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', format: 'uuid' },
+          },
+          {
+            name: 'decision',
+            in: 'query',
+            required: false,
+            schema: schemaRef('AccessDecision'),
+          },
+          {
+            name: 'from',
+            in: 'query',
+            required: false,
+            description: 'Fecha ISO minima de `occurredAt`.',
+            schema: { type: 'string', format: 'date-time' },
+          },
+          {
+            name: 'to',
+            in: 'query',
+            required: false,
+            description: 'Fecha ISO maxima de `occurredAt`.',
+            schema: { type: 'string', format: 'date-time' },
+          },
+        ],
         responses: {
           '200': accessEventPageResponse,
           '400': validationResponse,

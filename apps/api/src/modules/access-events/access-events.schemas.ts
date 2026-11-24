@@ -24,14 +24,20 @@ export const accessEventListQuerySchema = paginationQuerySchema.extend({
 })
 
 /**
- * The mobile history only accepts pagination. Employee identity always comes
- * from the authenticated account, never from a client-supplied filter.
+ * The mobile history accepts pagination and scoped filters. Employee identity
+ * always comes from the authenticated account, never from a client-supplied filter.
  */
-export const myAccessEventsQuerySchema = paginationQuerySchema
+export const myAccessEventsQuerySchema = paginationQuerySchema.extend({
+  areaId: z.uuid().optional(),
+  decision: accessDecisionSchema.optional(),
+  from: isoDateFilterSchema.optional(),
+  to: isoDateFilterSchema.optional(),
+})
 
 export const accessEventIdParamsSchema = z.object({
   id: z.uuid(),
 })
 
 export type AccessEventListQuery = z.infer<typeof accessEventListQuerySchema>
+export type MyAccessEventsQuery = z.infer<typeof myAccessEventsQuerySchema>
 export type AccessEventIdParams = z.infer<typeof accessEventIdParamsSchema>

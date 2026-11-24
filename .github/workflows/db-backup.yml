@@ -1,0 +1,134 @@
+name: Database Backup
+
+on:
+  schedule:
+    # 09:00 UTC = 01:00 PST / 02:00 PDT (America/Tijuana)
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: 'Dias de retencion del respaldo en GitHub Artifacts'
+        required: false
+        default: '30'
+        type: choice
+        options:
+          - '14'
+          - '30'
+          - '60'
+          - '90'
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Backup PostgreSQL (Supabase Free)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate backup secret
+        env:
+          SUPABASE_DB_BACKUP_URL: ${{ secrets.SUPABASE_DB_BACKUP_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_BACKUP_URL" ]; then
+            echo "::error::Falta el secreto SUPABASE_DB_BACKUP_URL. Configuralo con la cadena Session Mode Pooler (puerto 5432, compatible IPv4) en Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - name: Install PostgreSQL 17 client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl gnupg lsb-release
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          pg_dump --version
+
+      - name: Dump public schema and verify integrity
+        env:
+          SUPABASE_DB_BACKUP_URL: ${{ secrets.SUPABASE_DB_BACKUP_URL }}
+        run: |
+          set -euo pipefail
+          TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          echo "BACKUP_TIMESTAMP=${TIMESTAMP}" >> "$GITHUB_ENV"
+
+          mkdir -p backups
+          DUMP_FILE="backups/scaccess-${TIMESTAMP}.dump"
+
+          pg_dump "$SUPABASE_DB_BACKUP_URL" \
+            --format=custom \
+            --compress=9 \
+            --no-owner \
+            --no-acl \
+            --schema=public \
+            --file="$DUMP_FILE"
+
+          if [ ! -s "$DUMP_FILE" ]; then
+            echo "::error::El archivo de respaldo esta vacio."
+            exit 1
+          fi
+
+          pg_restore --list "$DUMP_FILE" > backups/manifest.txt
+          for table in employees credentials areas access_permissions access_events access_devices; do
+            if ! grep -q "TABLE DATA public ${table} " backups/manifest.txt; then
+              echo "::error::La tabla critica public.${table} no aparece en el respaldo."
+              exit 1
+            fi
+          done
+
+          sha256sum "$DUMP_FILE" > "${DUMP_FILE}.sha256"
+          echo "DUMP_FILE=${DUMP_FILE}" >> "$GITHUB_ENV"
+          ls -lh "$DUMP_FILE"
+
+      - name: Encrypt backup (optional)
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BACKUP_ENCRYPTION_KEY" ]; then
+            ENC_FILE="${DUMP_FILE}.enc"
+            openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt \
+              -in "$DUMP_FILE" \
+              -out "$ENC_FILE" \
+              -pass env:BACKUP_ENCRYPTION_KEY
+            rm -f "$DUMP_FILE" "${DUMP_FILE}.sha256"
+            sha256sum "$ENC_FILE" > "${ENC_FILE}.sha256"
+            echo "FINAL_BACKUP_FILE=${ENC_FILE}" >> "$GITHUB_ENV"
+            echo "BACKUP_ENCRYPTED=true" >> "$GITHUB_ENV"
+          else
+            echo "FINAL_BACKUP_FILE=${DUMP_FILE}" >> "$GITHUB_ENV"
+            echo "BACKUP_ENCRYPTED=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scaccess-db-backup-${{ env.BACKUP_TIMESTAMP }}
+          path: |
+            backups/scaccess-*.dump*
+            !backups/manifest.txt
+          retention-days: ${{ inputs.retention_days || 30 }}
+          if-no-files-found: error
+
+      - name: Upload backup to S3 / Cloudflare R2 (optional)
+        if: >-
+          secrets.BACKUP_S3_BUCKET != '' &&
+          secrets.BACKUP_S3_ENDPOINT != '' &&
+          secrets.BACKUP_S3_ACCESS_KEY_ID != '' &&
+          secrets.BACKUP_S3_SECRET_ACCESS_KEY != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          aws s3 cp "$FINAL_BACKUP_FILE" "s3://${BACKUP_S3_BUCKET}/scaccess/$(basename "$FINAL_BACKUP_FILE")" \
+            --endpoint-url "$BACKUP_S3_ENDPOINT"
+          aws s3 cp "${FINAL_BACKUP_FILE}.sha256" "s3://${BACKUP_S3_BUCKET}/scaccess/$(basename "${FINAL_BACKUP_FILE}.sha256")" \
+            --endpoint-url "$BACKUP_S3_ENDPOINT"

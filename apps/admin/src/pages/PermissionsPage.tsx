@@ -13,8 +13,13 @@ import { StatusBadge } from '../components/ui/StatusBadge'
 import { COLD_START_HINT, TableMessage } from '../components/ui/TableMessage'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
-import { formatDateTime } from '../lib/formatters'
-import { getErrorMessage, toIsoDate } from '../lib/validation'
+import { formatCount, formatDateTime } from '../lib/formatters'
+import {
+  getErrorMessage,
+  getMaxPermissionDateValue,
+  toIsoDate,
+  toLocalDateInputValue,
+} from '../lib/validation'
 
 const PAGE_SIZE = 20
 
@@ -24,8 +29,6 @@ const EMPTY_PAGINATION: PaginationMeta = {
   total: 0,
   totalPages: 0,
 }
-
-const COUNT_FORMATTER = new Intl.NumberFormat('es-MX')
 
 interface PermissionState {
   label: string
@@ -49,7 +52,7 @@ function getPermissionState(permission: AccessPermissionDto): PermissionState {
 
 function formatValidity(permission: AccessPermissionDto): string {
   if (!permission.validFrom && !permission.validTo) {
-    return 'Sin limites de vigencia'
+    return 'Sin límites de vigencia'
   }
 
   const from = permission.validFrom
@@ -101,7 +104,7 @@ export function PermissionsPage() {
       setError(
         getErrorMessage(
           err,
-          'No se pudo cargar la matriz de permisos de acceso. Revisa tu conexion y vuelve a intentarlo.',
+          'No se pudo cargar la matriz de permisos de acceso. Revisa tu conexión y vuelve a intentarlo.',
         ),
       )
     } finally {
@@ -158,7 +161,7 @@ export function PermissionsPage() {
   function areaLabel(areaId: string): { name: string; code: string } {
     const area = areaById.get(areaId)
     if (!area) {
-      return { name: 'Area no disponible', code: areaId.slice(0, 8) }
+      return { name: 'Área no disponible', code: areaId.slice(0, 8) }
     }
     return { name: area.name, code: area.code }
   }
@@ -169,7 +172,7 @@ export function PermissionsPage() {
         <div>
           <h1 className="page-title">Permisos de acceso</h1>
           <p className="page-description">
-            Asignacion vigente entre empleados y areas protegidas.
+            Asignación vigente entre empleados y áreas protegidas.
           </p>
         </div>
         {canWriteCatalog ? (
@@ -245,7 +248,7 @@ export function PermissionsPage() {
             </div>
             <div className="toolbar-field">
               <label className="form-label" htmlFor="permission-area-filter">
-                Area
+                Área
               </label>
               <select
                 id="permission-area-filter"
@@ -257,7 +260,7 @@ export function PermissionsPage() {
                   setPage(1)
                 }}
               >
-                <option value="">Todas las areas</option>
+                <option value="">Todas las áreas</option>
                 {areas.map((area) => (
                   <option key={area.id} value={area.id}>
                     {area.name} ({area.code})
@@ -285,16 +288,16 @@ export function PermissionsPage() {
           <span className="table-meta" role="status" aria-live="polite">
             {loading
               ? 'Actualizando…'
-              : `${COUNT_FORMATTER.format(pagination.total)} permisos en total`}
+              : `${formatCount(pagination.total, 'permiso', 'permisos')} en total`}
           </span>
         </div>
 
         <div className="table-wrapper">
-          <table className="data-table" aria-busy={loading}>
+          <table className="data-table responsive-table" aria-busy={loading}>
             <thead>
               <tr>
                 <th scope="col">Empleado</th>
-                <th scope="col">Area</th>
+                <th scope="col">Área</th>
                 <th scope="col">Vigencia</th>
                 <th scope="col">Estado</th>
                 <th scope="col">Otorgado</th>
@@ -318,7 +321,7 @@ export function PermissionsPage() {
                     hasActiveFilters
                       ? 'Ajusta o limpia los filtros para ver toda la matriz.'
                       : canWriteCatalog
-                        ? 'Otorga el primer permiso para vincular un empleado con un area.'
+                        ? 'Otorga el primer permiso para vincular un empleado con un área.'
                         : 'Solicita a un administrador que otorgue el primer permiso.'
                   }
                 >
@@ -349,7 +352,7 @@ export function PermissionsPage() {
 
                   return (
                     <tr key={permission.id}>
-                      <td>
+                      <td data-label="Empleado">
                         <div className="cell-stack">
                           <span className="cell-primary">{employee.name}</span>
                           <span className="cell-secondary mono-text" translate="no">
@@ -357,7 +360,7 @@ export function PermissionsPage() {
                           </span>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Área">
                         <div className="cell-stack">
                           <span className="cell-primary">{area.name}</span>
                           <span className="mono-code" translate="no">
@@ -365,14 +368,18 @@ export function PermissionsPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="cell-secondary">{formatValidity(permission)}</td>
-                      <td>
+                      <td data-label="Vigencia" className="cell-secondary">
+                        {formatValidity(permission)}
+                      </td>
+                      <td data-label="Estado">
                         <StatusBadge variant={permissionState.variant}>
                           {permissionState.label}
                         </StatusBadge>
                       </td>
-                      <td className="cell-secondary">{formatDateTime(permission.createdAt)}</td>
-                      <td>
+                      <td data-label="Otorgado" className="cell-secondary">
+                        {formatDateTime(permission.createdAt)}
+                      </td>
+                      <td data-label="Acciones">
                         <div className="row-actions">
                           {canWriteCatalog && !permission.revokedAt ? (
                             <button
@@ -447,11 +454,35 @@ function GrantPermissionModal({ employees, areas, onClose, onSaved }: GrantPermi
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
+  const activeEmployees = useMemo(
+    () => employees.filter((emp) => emp.status === 'active'),
+    [employees],
+  )
+  const activeAreas = useMemo(() => areas.filter((area) => area.isActive), [areas])
+
+  const todayDate = toLocalDateInputValue()
+  const maxDate = getMaxPermissionDateValue()
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (!employeeId || !areaId) {
-      setFormError('Selecciona el empleado y el area que quieres vincular.')
+      setFormError('Selecciona el empleado y el área que quieres vincular.')
+      return
+    }
+
+    if (validFrom && validFrom < todayDate) {
+      setFormError('La fecha de inicio no puede ser anterior al día de hoy.')
+      return
+    }
+
+    if (validTo && validTo < todayDate) {
+      setFormError('La fecha de fin no puede ser anterior al día de hoy.')
+      return
+    }
+
+    if (validTo && validTo > maxDate) {
+      setFormError('La vigencia máxima permitida es de 5 años hacia el futuro.')
       return
     }
 
@@ -483,16 +514,17 @@ function GrantPermissionModal({ employees, areas, onClose, onSaved }: GrantPermi
   return (
     <Modal
       title="Otorgar permiso de acceso"
-      description="El permiso se aplica al area indicada. Si no defines fechas, permanece vigente hasta que se revoque."
+      description="El permiso se aplica al área indicada. Si no defines fechas, permanece vigente hasta que se revoque."
       onClose={onClose}
     >
-      <form autoComplete="off" onSubmit={(event) => void handleSubmit(event)}>
+      <form autoComplete="off" noValidate onSubmit={(event) => void handleSubmit(event)}>
         <div className="modal-body">
           {formError ? <NoticeBanner variant="error">{formError}</NoticeBanner> : null}
 
-          {employees.length === 0 || areas.length === 0 ? (
+          {activeEmployees.length === 0 || activeAreas.length === 0 ? (
             <NoticeBanner variant="warning">
-              Necesitas al menos un empleado y un area registrados antes de otorgar permisos.
+              Necesitas al menos un empleado activo y un área activa registrados antes de otorgar
+              permisos.
             </NoticeBanner>
           ) : null}
 
@@ -509,8 +541,8 @@ function GrantPermissionModal({ employees, areas, onClose, onSaved }: GrantPermi
                 onChange={(event) => setEmployeeId(event.target.value)}
                 required
               >
-                <option value="">Selecciona un empleado</option>
-                {employees.map((employee) => (
+                <option value="">Selecciona un empleado activo</option>
+                {activeEmployees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.firstName} {employee.lastName} ({employee.employeeCode})
                   </option>
@@ -520,7 +552,7 @@ function GrantPermissionModal({ employees, areas, onClose, onSaved }: GrantPermi
 
             <div className="form-field">
               <label className="form-label" htmlFor="permission-form-area">
-                Area protegida
+                Área protegida
               </label>
               <select
                 id="permission-form-area"
@@ -530,8 +562,8 @@ function GrantPermissionModal({ employees, areas, onClose, onSaved }: GrantPermi
                 onChange={(event) => setAreaId(event.target.value)}
                 required
               >
-                <option value="">Selecciona un area</option>
-                {areas.map((area) => (
+                <option value="">Selecciona un área</option>
+                {activeAreas.map((area) => (
                   <option key={area.id} value={area.id}>
                     {area.name} ({area.code})
                   </option>
@@ -548,13 +580,15 @@ function GrantPermissionModal({ employees, areas, onClose, onSaved }: GrantPermi
                 name="validFrom"
                 className="input-control"
                 type="date"
+                min={todayDate}
+                max={maxDate}
                 value={validFrom}
                 onChange={(event) => setValidFrom(event.target.value)}
                 autoComplete="off"
                 aria-describedby="permission-form-from-hint"
               />
               <span className="form-hint" id="permission-form-from-hint">
-                Opcional. Se interpreta al inicio del dia local.
+                Opcional. Desde hoy y al inicio del día local.
               </span>
             </div>
 
@@ -567,13 +601,15 @@ function GrantPermissionModal({ employees, areas, onClose, onSaved }: GrantPermi
                 name="validTo"
                 className="input-control"
                 type="date"
+                min={validFrom || todayDate}
+                max={maxDate}
                 value={validTo}
                 onChange={(event) => setValidTo(event.target.value)}
                 autoComplete="off"
                 aria-describedby="permission-form-to-hint"
               />
               <span className="form-hint" id="permission-form-to-hint">
-                Opcional. Sin fecha de fin, el permiso no expira.
+                Opcional (máximo 5 años). Sin fecha de fin, el permiso no expira.
               </span>
             </div>
           </div>
@@ -586,7 +622,7 @@ function GrantPermissionModal({ employees, areas, onClose, onSaved }: GrantPermi
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={submitting || employees.length === 0 || areas.length === 0}
+            disabled={submitting || activeEmployees.length === 0 || activeAreas.length === 0}
             aria-busy={submitting}
           >
             {submitting ? 'Guardando…' : 'Guardar permiso'}
@@ -630,7 +666,7 @@ function RevokePermissionModal({
   return (
     <Modal
       title="Revocar permiso de acceso"
-      description="El permiso deja de ser valido de inmediato. Los eventos ya registrados no se modifican."
+      description="El permiso deja de ser válido de inmediato. Los eventos ya registrados no se modifican."
       onClose={onClose}
     >
       {formError ? <NoticeBanner variant="error">{formError}</NoticeBanner> : null}
@@ -641,13 +677,13 @@ function RevokePermissionModal({
           <div className="detail-value">{employeeName}</div>
         </div>
         <div className="detail-item">
-          <div className="detail-label">Area</div>
+          <div className="detail-label">Área</div>
           <div className="detail-value">{areaName}</div>
         </div>
       </div>
 
       <p className="modal-warning">
-        Esta accion no elimina el registro del permiso: lo marca como revocado con la fecha actual.
+        Esta acción no elimina el registro del permiso: lo marca como revocado con la fecha actual.
       </p>
 
       <div className="modal-footer">
@@ -661,7 +697,7 @@ function RevokePermissionModal({
           disabled={submitting}
           aria-busy={submitting}
         >
-          {submitting ? 'Revocando…' : 'Confirmar revocacion'}
+          {submitting ? 'Revocando…' : 'Confirmar revocación'}
         </button>
       </div>
     </Modal>

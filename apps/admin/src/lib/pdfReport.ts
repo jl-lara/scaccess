@@ -55,9 +55,9 @@ const TABLE_COLUMNS: readonly TableColumn[] = [
   { label: 'Resultado', width: 64 },
   { label: 'Empleado', width: 128 },
   { label: 'Tarjeta UID', width: 88 },
-  { label: 'Area / Controlador', width: 138 },
+  { label: 'Área / Controlador', width: 138 },
   { label: 'Motivo', width: 118 },
-  { label: 'Ocurrio (lector)', width: 92 },
+  { label: 'Ocurrió (lector)', width: 92 },
   { label: 'Recibido (servidor)', width: 92 },
 ]
 
@@ -477,7 +477,7 @@ function drawPageFooter(cmds: string[], pageNumber: number, totalPages: number) 
     COLOR_TEXT_LIGHT_MUTED,
   )
 
-  const pageLabel = `Pagina ${pageNumber} de ${totalPages}`
+  const pageLabel = `Página ${pageNumber} de ${totalPages}`
   const pageLabelWidth = estimateTextWidth(pageLabel, 8, 'F1')
   drawText(
     cmds,
@@ -496,10 +496,10 @@ function drawFirstPageHeader(cmds: string[], params: AccessEventsPdfParams): num
 
   drawRectFill(cmds, MARGIN_X, bannerBottom, CONTENT_WIDTH, bannerHeight, COLOR_ACCESA)
 
-  const title = 'Accesa - Reporte de Bitacora de Accesos'
+  const title = 'Accesa - Reporte de Bitácora de Accesos'
   drawText(cmds, MARGIN_X + 14, TOP_Y - 22, title, 'F2', 14.5, COLOR_WHITE)
 
-  const rightTag = 'AUDITORIA RFID'
+  const rightTag = 'AUDITORÍA RFID'
   const rightTagWidth = estimateTextWidth(rightTag, 8.5, 'F2')
   drawText(
     cmds,
@@ -580,7 +580,7 @@ function drawContinuationPageHeader(cmds: string[], generatedAtLabel: string): n
     cmds,
     MARGIN_X,
     TOP_Y - 12,
-    'Accesa - Reporte de Bitacora de Accesos (continuacion)',
+    'Accesa - Reporte de Bitácora de Accesos (continuación)',
     'F2',
     10,
     COLOR_ACCESA,

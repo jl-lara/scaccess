@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Pencil, Plus, Search } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
 import type {
   CredentialDto,
   CredentialStatus,
@@ -13,7 +13,7 @@ import { StatusBadge } from '../components/ui/StatusBadge'
 import { COLD_START_HINT, TableMessage } from '../components/ui/TableMessage'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
-import { CREDENTIAL_STATUS_LABELS, formatDateTime } from '../lib/formatters'
+import { CREDENTIAL_STATUS_LABELS, formatCount, formatDateTime } from '../lib/formatters'
 import {
   getErrorMessage,
   isValidCardUid,
@@ -22,7 +22,8 @@ import {
 
 const PAGE_SIZE = 20
 const CREDENTIAL_STATUSES: CredentialStatus[] = ['active', 'blocked', 'lost', 'retired']
-const CARD_UID_HINT = 'UID hexadecimal par de 8 a 32 caracteres, por ejemplo 04A1B2C3D4E5F6.'
+const CARD_UID_HINT =
+  'UID hexadecimal par de 8 a 32 caracteres leído de la tarjeta RFID física, por ejemplo 04A1B2C3D4E5F6.'
 
 const EMPTY_PAGINATION: PaginationMeta = {
   page: 1,
@@ -30,8 +31,6 @@ const EMPTY_PAGINATION: PaginationMeta = {
   total: 0,
   totalPages: 0,
 }
-
-const COUNT_FORMATTER = new Intl.NumberFormat('es-MX')
 
 type CredentialModalState = { mode: 'create' } | { mode: 'edit'; credential: CredentialDto } | null
 
@@ -70,7 +69,7 @@ export function CredentialsPage() {
       setEmployeesError(
         getErrorMessage(
           err,
-          'No se pudo cargar el directorio de empleados titulares. Revisa tu conexion y vuelve a intentarlo.',
+          'No se pudo cargar el directorio de empleados titulares. Revisa tu conexión y vuelve a intentarlo.',
         ),
       )
     } finally {
@@ -99,7 +98,7 @@ export function CredentialsPage() {
       setError(
         getErrorMessage(
           err,
-          'No se pudo cargar el inventario de tarjetas RFID. Revisa tu conexion y vuelve a intentarlo.',
+          'No se pudo cargar el inventario de tarjetas RFID. Revisa tu conexión y vuelve a intentarlo.',
         ),
       )
     } finally {
@@ -110,6 +109,24 @@ export function CredentialsPage() {
   useEffect(() => {
     void loadCredentials()
   }, [loadCredentials])
+
+  useEffect(() => {
+    const normalizedUid = normalizeCardUid(cardUidInput)
+    if (normalizedUid === appliedCardUid) {
+      return
+    }
+    const timer = setTimeout(() => {
+      if (normalizedUid && !isValidCardUid(normalizedUid)) {
+        setFilterError(CARD_UID_HINT)
+        return
+      }
+      setFilterError(null)
+      setPage(1)
+      setAppliedCardUid(normalizedUid)
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [cardUidInput, appliedCardUid])
 
   const employeeById = useMemo(
     () => new Map(employees.map((employee) => [employee.id, employee])),
@@ -239,6 +256,7 @@ export function CredentialsPage() {
           role="search"
           aria-label="Filtros de tarjetas RFID"
           autoComplete="off"
+          noValidate
           onSubmit={handleFilterSubmit}
         >
           <div className="filter-group">
@@ -306,10 +324,6 @@ export function CredentialsPage() {
                 aria-describedby={filterError ? 'credential-filter-error' : undefined}
               />
             </div>
-            <button type="submit" className="btn btn-primary btn-sm">
-              <Search size={14} aria-hidden="true" />
-              Aplicar filtros
-            </button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
               Limpiar
             </button>
@@ -317,7 +331,7 @@ export function CredentialsPage() {
           <span className="table-meta" role="status" aria-live="polite">
             {loading
               ? 'Actualizando…'
-              : `${COUNT_FORMATTER.format(pagination.total)} tarjetas en total`}
+              : `${formatCount(pagination.total, 'tarjeta', 'tarjetas')} en total`}
           </span>
         </form>
 
@@ -328,14 +342,14 @@ export function CredentialsPage() {
         ) : null}
 
         <div className="table-wrapper">
-          <table className="data-table" aria-busy={loading}>
+          <table className="data-table responsive-table" aria-busy={loading}>
             <thead>
               <tr>
                 <th scope="col">Tarjeta</th>
                 <th scope="col">Titular</th>
                 <th scope="col">Estado</th>
                 <th scope="col">Emitida</th>
-                <th scope="col">Desactivacion</th>
+                <th scope="col">Desactivación</th>
                 <th scope="col" className="align-right">
                   Acciones
                 </th>
@@ -358,7 +372,7 @@ export function CredentialsPage() {
                     hasActiveFilters
                       ? 'Ajusta o limpia los filtros para ver todo el inventario.'
                       : canWriteCatalog
-                        ? 'Registra la primera tarjeta RFID y vincula la al empleado titular.'
+                        ? 'Registra la primera tarjeta RFID y vincúlala al empleado titular.'
                         : 'Solicita a un administrador que registre la primera tarjeta RFID.'
                   }
                 >
@@ -386,7 +400,7 @@ export function CredentialsPage() {
                   const holder = employeeName(credential.employeeId)
                   return (
                     <tr key={credential.id}>
-                      <td>
+                      <td data-label="Tarjeta">
                         <div className="cell-stack">
                           <span className="mono-code" translate="no">
                             {credential.cardUid}
@@ -396,7 +410,7 @@ export function CredentialsPage() {
                           </span>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Titular">
                         <div className="cell-stack">
                           <span className="cell-primary">{holder.name}</span>
                           <span className="cell-secondary mono-text" translate="no">
@@ -404,15 +418,17 @@ export function CredentialsPage() {
                           </span>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Estado">
                         <StatusBadge variant={credentialBadgeVariant(credential.status)}>
                           {CREDENTIAL_STATUS_LABELS[credential.status]}
                         </StatusBadge>
                       </td>
-                      <td className="cell-secondary">{formatDateTime(credential.issuedAt)}</td>
-                      <td>
+                      <td data-label="Emitida" className="cell-secondary">
+                        {formatDateTime(credential.issuedAt)}
+                      </td>
+                      <td data-label="Desactivación">
                         {credential.status === 'active' ? (
-                          <span className="cell-secondary">Sin desactivacion</span>
+                          <span className="cell-secondary">Sin desactivación</span>
                         ) : (
                           <div className="cell-stack">
                             <span>{credential.deactivationReason ?? 'Sin motivo registrado'}</span>
@@ -422,7 +438,7 @@ export function CredentialsPage() {
                           </div>
                         )}
                       </td>
-                      <td>
+                      <td data-label="Acciones">
                         <div className="row-actions">
                           {canWriteCatalog ? (
                             <button
@@ -502,8 +518,13 @@ function CredentialFormModal({
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
+  const activeEmployees = useMemo(
+    () => employees.filter((emp) => emp.status === 'active'),
+    [employees],
+  )
+
   const requiresReason = status !== 'active'
-  const canSubmit = credential !== null || (!employeesLoading && employees.length > 0)
+  const canSubmit = credential !== null || (!employeesLoading && activeEmployees.length > 0)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -538,7 +559,7 @@ function CredentialFormModal({
     }
 
     if (requiresReason && !deactivationReason.trim()) {
-      setFormError('Indica el motivo de la desactivacion para conservar la trazabilidad.')
+      setFormError('Indica el motivo de la desactivación para conservar la trazabilidad.')
       return
     }
 
@@ -569,11 +590,11 @@ function CredentialFormModal({
       description={
         credential
           ? 'Actualiza la etiqueta o desactiva la tarjeta con un motivo verificable. El UID no se puede modificar.'
-          : 'El UID se captura del lector fisico. Se normaliza a mayusculas y sin separadores antes de guardarlo.'
+          : 'El UID proviene de la tarjeta física leída en el lector. Se normaliza a mayúsculas y sin separadores antes de guardarlo.'
       }
       onClose={onClose}
     >
-      <form autoComplete="off" onSubmit={(event) => void handleSubmit(event)}>
+      <form autoComplete="off" noValidate onSubmit={(event) => void handleSubmit(event)}>
         <div className="modal-body">
           {formError ? <NoticeBanner variant="error">{formError}</NoticeBanner> : null}
 
@@ -610,14 +631,14 @@ function CredentialFormModal({
                   onChange={(event) => setEmployeeId(event.target.value)}
                   disabled={employeesLoading}
                   aria-describedby={
-                    employeesLoading || employeesError || employees.length === 0
+                    employeesLoading || employeesError || activeEmployees.length === 0
                       ? 'credential-form-employee-hint'
                       : undefined
                   }
                   required
                 >
-                  <option value="">Selecciona un empleado</option>
-                  {employees.map((employee) => (
+                  <option value="">Selecciona un empleado activo</option>
+                  {activeEmployees.map((employee) => (
                     <option key={employee.id} value={employee.id}>
                       {employee.firstName} {employee.lastName} ({employee.employeeCode})
                     </option>
@@ -631,9 +652,10 @@ function CredentialFormModal({
                   <span className="form-hint" id="credential-form-employee-hint">
                     Cargando empleados disponibles…
                   </span>
-                ) : employees.length === 0 ? (
+                ) : activeEmployees.length === 0 ? (
                   <span className="form-error" id="credential-form-employee-hint">
-                    No hay empleados registrados. Crea uno antes de asignar tarjetas.
+                    No hay empleados activos disponibles. Activa o registra un empleado antes de
+                    asignar tarjetas.
                   </span>
                 ) : null}
               </div>
@@ -659,8 +681,8 @@ function CredentialFormModal({
                   required
                 />
                 <span className="form-hint" id="credential-form-uid-hint">
-                  {CARD_UID_HINT} La tarjeta se registra activa; bloqueala o retirala desde la
-                  edicion con un motivo verificable.
+                  {CARD_UID_HINT} La tarjeta se registra activa; bloquéala o retírala desde la
+                  edición con un motivo verificable.
                 </span>
               </div>
             ) : null}
@@ -705,7 +727,7 @@ function CredentialFormModal({
             {requiresReason ? (
               <div className="form-field form-field-full">
                 <label className="form-label" htmlFor="credential-form-reason">
-                  Motivo de desactivacion
+                  Motivo de desactivación
                 </label>
                 <textarea
                   id="credential-form-reason"
@@ -715,13 +737,13 @@ function CredentialFormModal({
                   onChange={(event) => setDeactivationReason(event.target.value)}
                   maxLength={500}
                   rows={3}
-                  placeholder="Describe por que se bloquea, extravia o retira la tarjeta…"
+                  placeholder="Describe por qué se bloquea, extravía o retira la tarjeta…"
                   autoComplete="off"
                   aria-describedby="credential-form-reason-hint"
                   required
                 />
                 <span className="form-hint" id="credential-form-reason-hint">
-                  Este motivo queda en el historial de la credencial para futuras auditorias.
+                  Este motivo queda en el historial de la credencial para futuras auditorías.
                 </span>
               </div>
             ) : null}

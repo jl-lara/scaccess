@@ -40,7 +40,38 @@ describe('App routing', () => {
 
     expect(await screen.findByRole('heading', { name: 'Empleados' })).toBeInTheDocument()
     expect(await screen.findByText('Ana Torres')).toBeInTheDocument()
-    expect(screen.getByRole('navigation', { name: 'Menu administrativo' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Bitacora de accesos' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Menú administrativo' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Bitácora de accesos' })).toBeInTheDocument()
+  })
+
+  it('initializes the sidebar collapsed on compact mobile viewports (<= 960px)', async () => {
+    const matchMediaSpy = vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(max-width: 960px)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+    vi.stubGlobal('matchMedia', matchMediaSpy)
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/employees']}>
+          <AuthContext.Provider value={makeAuth(['admin'])}>
+            <App />
+          </AuthContext.Provider>
+        </MemoryRouter>,
+      )
+
+      expect(await screen.findByRole('heading', { name: 'Empleados' })).toBeInTheDocument()
+      const toggle = screen.getByRole('button', { name: 'Mostrar barra lateral' })
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      expect(document.querySelector('.app-shell')).toHaveClass('is-sidebar-collapsed')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

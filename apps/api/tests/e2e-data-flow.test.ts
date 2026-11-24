@@ -144,6 +144,20 @@ interface AccessEventWhere {
   occurredAt?: { gte?: Date; lte?: Date }
 }
 
+interface AccessEventInclude {
+  area?: boolean | { select?: { id?: boolean; code?: boolean; name?: boolean } }
+  device?:
+    | boolean
+    | {
+        select?: {
+          id?: boolean
+          deviceCode?: boolean
+          name?: boolean
+          location?: boolean
+        }
+      }
+}
+
 function matchesAccessEvent(
   event: FakeAccessEvent,
   where: AccessEventWhere = {},
@@ -217,6 +231,46 @@ class InMemoryE2EPrisma {
       deviceAreas: device.areaIds.map((areaId) => ({ areaId })),
       syncState: syncState ? { ...syncState } : null,
     }
+  }
+
+  private withAccessEventRelations(
+    event: FakeAccessEvent,
+    include?: AccessEventInclude,
+  ) {
+    if (!include) {
+      return event
+    }
+
+    const result: FakeAccessEvent & {
+      area?: { id: string; code: string; name: string } | null
+      device?: {
+        id: string
+        deviceCode: string
+        name: string
+        location: string | null
+      } | null
+    } = { ...event }
+
+    if (include.area) {
+      const area = this.areas.find((item) => item.id === event.areaId)
+      result.area = area
+        ? { id: area.id, code: area.code, name: area.name }
+        : null
+    }
+
+    if (include.device) {
+      const device = this.devices.find((item) => item.id === event.deviceId)
+      result.device = device
+        ? {
+            id: device.id,
+            deviceCode: device.deviceCode,
+            name: device.name,
+            location: device.location,
+          }
+        : null
+    }
+
+    return result
   }
 
   readonly area = {
@@ -938,6 +992,7 @@ class InMemoryE2EPrisma {
     findMany: async (
       args: {
         where?: AccessEventWhere
+        include?: AccessEventInclude
         orderBy?: { occurredAt?: 'asc' | 'desc' }
         skip?: number
         take?: number
@@ -952,17 +1007,29 @@ class InMemoryE2EPrisma {
               (left, right) =>
                 right.occurredAt.getTime() - left.occurredAt.getTime(),
             )
-          : matching
+          : args.orderBy?.occurredAt === 'asc'
+            ? [...matching].sort(
+                (left, right) =>
+                  left.occurredAt.getTime() - right.occurredAt.getTime(),
+              )
+            : matching
       const start = args.skip ?? 0
       const end = args.take === undefined ? undefined : start + args.take
 
-      return sorted.slice(start, end)
+      return sorted
+        .slice(start, end)
+        .map((event) => this.withAccessEventRelations(event, args.include))
     },
     count: async (args: { where?: AccessEventWhere } = {}) =>
       this.events.filter((event) => matchesAccessEvent(event, args.where))
         .length,
-    findUnique: async (args: { where: { id: string } }) =>
-      this.events.find((event) => event.id === args.where.id) ?? null,
+    findUnique: async (args: {
+      where: { id: string }
+      include?: AccessEventInclude
+    }) => {
+      const event = this.events.find((item) => item.id === args.where.id)
+      return event ? this.withAccessEventRelations(event, args.include) : null
+    },
     create: async (args: {
       data: {
         deviceId: string

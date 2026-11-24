@@ -20,12 +20,12 @@ export function RoleGuard({ require, children }: RoleGuardProps) {
   return (
     <section className="surface-card restricted-card" role="alert">
       <ShieldAlert size={28} aria-hidden="true" />
-      <h1 className="page-title">Modulo restringido para tu perfil</h1>
+      <h1 className="page-title">Módulo restringido para tu perfil</h1>
       <p className="restricted-card-profile">
         Perfil activo: {permissions.profileLabel} · {permissions.profileSummary}
       </p>
       <p className="restricted-card-description">
-        Tu sesion actual no cuenta con autorizacion para consultar o administrar este modulo.
+        Tu sesión actual no cuenta con autorización para consultar o administrar este módulo.
       </p>
       <Link to="/" className="btn btn-primary">
         Volver al panel de control

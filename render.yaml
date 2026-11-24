@@ -1,6 +1,7 @@
-# Blueprint de Render para el Sistema de Control de Acceso (API + Web Administrativa).
+# Blueprint de Render para el Sistema de Control de Acceso (API + Web Administrativa + Landing).
 # - scaccess-api: contenedor Docker gratuito (se suspende tras 15 minutos sin trafico).
 # - accesa-admin: Static Site gratuito por CDN (sin suspension ni consumo de horas).
+# - accesa-landing: Static Site gratuito por CDN para el sitio promocional (sin suspension ni consumo de horas).
 # Documentacion: docs/DEVELOPMENT.md, apps/admin/README.md y docs/adr/0013-docker-containerization.md
 services:
   - type: web
@@ -51,6 +52,20 @@ services:
         value: https://vomjmyqxbqgndndvpaqb.supabase.co
       - key: VITE_SUPABASE_ANON_KEY
         sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: web
+    name: accesa-landing
+    runtime: static
+    branch: main
+    buildCommand: npm ci --include=dev && npm run build:landing
+    staticPublishPath: ./apps/landing/dist
+    envVars:
+      - key: NODE_VERSION
+        value: 22.18.0
     routes:
       - type: rewrite
         source: /*
