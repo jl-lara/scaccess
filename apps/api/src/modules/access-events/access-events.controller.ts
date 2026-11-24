@@ -3,10 +3,10 @@ import type { Request, Response } from 'express'
 import { getAuthenticatedUser } from '../../middleware/auth.js'
 import { getValidated } from '../../middleware/validate.js'
 import { ApiError } from '../../utils/ApiError.js'
-import type { PaginationQuery } from '../../utils/pagination.js'
 import type {
   AccessEventIdParams,
   AccessEventListQuery,
+  MyAccessEventsQuery,
 } from './access-events.schemas.js'
 import {
   getAccessEvent,
@@ -40,7 +40,7 @@ export async function listMyAccessEventsHandler(
   res: Response<PaginatedResponse<AccessEventDto>>,
 ): Promise<void> {
   const user = getAuthenticatedUser(req, res)
-  const { query } = getValidated<unknown, PaginationQuery>(res)
+  const { query } = getValidated<unknown, MyAccessEventsQuery>(res)
 
   if (user.employeeId === null) {
     // Defensive guard: requireEmployeeAccount already enforces this.

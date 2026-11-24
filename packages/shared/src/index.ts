@@ -266,6 +266,19 @@ export interface DeviceCredentialIssuedDto {
   expiresAt: string | null
 }
 
+export interface AccessEventAreaSummary {
+  id: string
+  code: string
+  name: string
+}
+
+export interface AccessEventDeviceSummary {
+  id: string
+  deviceCode: string
+  name: string
+  location: string | null
+}
+
 export interface AccessEventDto {
   id: string
   deviceId: string
@@ -282,6 +295,8 @@ export interface AccessEventDto {
   deviceSequence: string | null
   metadata: unknown | null
   createdAt: string
+  area?: AccessEventAreaSummary
+  device?: AccessEventDeviceSummary
 }
 
 export interface RoleDto {
@@ -310,4 +325,58 @@ export interface DashboardSummaryDto {
   areas: { total: number; active: number }
   devices: { total: number; active: number; outOfSync: number }
   recentEvents24h: { granted: number; denied: number }
+}
+
+// ---------------------------------------------------------------------------
+// Contratos de autoservicio para empleados (app movil /api/v1/me/*)
+// ---------------------------------------------------------------------------
+
+export interface MyEmployeeProfileDto {
+  id: string
+  employeeCode: string
+  firstName: string
+  lastName: string
+  email: string | null
+  department: string | null
+  position: string | null
+  status: EmployeeStatus
+  hiredAt: string | null
+}
+
+export interface MyCredentialSummaryDto {
+  id: string
+  cardUid: string
+  label: string | null
+  status: CredentialStatus
+  issuedAt: string | null
+  deactivatedAt: string | null
+}
+
+export interface MyProfileResponseDto {
+  account: UserAccountDto
+  employee: MyEmployeeProfileDto
+  credentials: MyCredentialSummaryDto[]
+}
+
+export interface MyAreaSummaryDto {
+  id: string
+  code: string
+  name: string
+  description: string | null
+  isActive: boolean
+  timezone: string
+}
+
+export interface MyAccessPermissionDto {
+  id: string
+  areaId: string
+  validFrom: string | null
+  validTo: string | null
+  schedule: unknown | null
+  revokedAt: string | null
+  area: MyAreaSummaryDto
+}
+
+export interface MyPermissionsResponseDto {
+  data: MyAccessPermissionDto[]
 }

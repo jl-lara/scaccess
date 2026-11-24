@@ -63,12 +63,15 @@ const DOCUMENTED_PATHS = [
   '/devices/{deviceId}/events/sync',
   '/access-events',
   '/access-events/{id}',
+  '/me/profile',
+  '/me/permissions',
   '/me/access-events',
   '/me/access-events/{id}',
   '/dashboard/summary',
 ]
 
-const PROTECTED_ROUTES: Array<{ method: 'get' | 'post'; path: string }> = [  { method: 'get', path: '/api/v1/auth/me' },
+const PROTECTED_ROUTES: Array<{ method: 'get' | 'post'; path: string }> = [
+  { method: 'get', path: '/api/v1/auth/me' },
   { method: 'get', path: '/api/v1/roles' },
   { method: 'get', path: '/api/v1/users' },
   { method: 'get', path: '/api/v1/areas' },
@@ -79,6 +82,8 @@ const PROTECTED_ROUTES: Array<{ method: 'get' | 'post'; path: string }> = [  { m
   { method: 'get', path: '/api/v1/devices/dev_01/sync' },
   { method: 'post', path: '/api/v1/devices/dev_01/events/sync' },
   { method: 'get', path: '/api/v1/access-events' },
+  { method: 'get', path: '/api/v1/me/profile' },
+  { method: 'get', path: '/api/v1/me/permissions' },
   { method: 'get', path: '/api/v1/me/access-events' },
   { method: 'get', path: '/api/v1/dashboard/summary' },
 ]
@@ -153,7 +158,7 @@ describe('GET /api/v1/openapi.json', () => {
       }
     }
 
-    expect(operationIds.length).toBe(36)
+    expect(operationIds.length).toBe(38)
     expect(new Set(operationIds).size).toBe(operationIds.length)
   })
 
