@@ -202,6 +202,20 @@ interface AccessEventWhere {
   occurredAt?: { gte?: Date; lte?: Date }
 }
 
+interface AccessEventInclude {
+  area?: boolean | { select?: { id?: boolean; code?: boolean; name?: boolean } }
+  device?:
+    | boolean
+    | {
+        select?: {
+          id?: boolean
+          deviceCode?: boolean
+          name?: boolean
+          location?: boolean
+        }
+      }
+}
+
 interface AccessEventCreateData {
   deviceId: string
   clientEventId: string
@@ -288,6 +302,46 @@ class InMemoryPrisma {
       ...device,
       deviceAreas: device.areaIds.map((areaId) => ({ areaId })),
     }
+  }
+
+  private withAccessEventRelations(
+    event: FakeAccessEvent,
+    include?: AccessEventInclude,
+  ) {
+    if (!include) {
+      return event
+    }
+
+    const result: FakeAccessEvent & {
+      area?: { id: string; code: string; name: string } | null
+      device?: {
+        id: string
+        deviceCode: string
+        name: string
+        location: string | null
+      } | null
+    } = { ...event }
+
+    if (include.area) {
+      const area = this.areas.find((item) => item.id === event.areaId)
+      result.area = area
+        ? { id: area.id, code: area.code, name: area.name }
+        : null
+    }
+
+    if (include.device) {
+      const device = this.devices.find((item) => item.id === event.deviceId)
+      result.device = device
+        ? {
+            id: device.id,
+            deviceCode: device.deviceCode,
+            name: device.name,
+            location: device.location,
+          }
+        : null
+    }
+
+    return result
   }
 
   readonly accessDevice = {
@@ -551,6 +605,7 @@ class InMemoryPrisma {
     findMany: async (
       args: {
         where?: AccessEventWhere
+        include?: AccessEventInclude
         orderBy?: { occurredAt?: 'asc' | 'desc' }
         skip?: number
         take?: number
@@ -565,16 +620,27 @@ class InMemoryPrisma {
           ? [...matching].sort(
               (left, right) => right.occurredAt.getTime() - left.occurredAt.getTime(),
             )
-          : matching
+          : args.orderBy?.occurredAt === 'asc'
+            ? [...matching].sort(
+                (left, right) => left.occurredAt.getTime() - right.occurredAt.getTime(),
+              )
+            : matching
       const start = args.skip ?? 0
       const end = args.take === undefined ? undefined : start + args.take
 
-      return sorted.slice(start, end)
+      return sorted
+        .slice(start, end)
+        .map((event) => this.withAccessEventRelations(event, args.include))
     },
     count: async (args: { where?: AccessEventWhere } = {}) =>
       this.events.filter((event) => matchesAccessEvent(event, args.where)).length,
-    findUnique: async (args: { where: { id: string } }) =>
-      this.events.find((event) => event.id === args.where.id) ?? null,
+    findUnique: async (args: {
+      where: { id: string }
+      include?: AccessEventInclude
+    }) => {
+      const event = this.events.find((item) => item.id === args.where.id)
+      return event ? this.withAccessEventRelations(event, args.include) : null
+    },
     create: async (args: { data: AccessEventCreateData }) => {
       const duplicate = this.events.some(
         (event) =>
@@ -718,6 +784,7 @@ class InMemoryPrisma {
     id?: string
     deviceCode: string
     name?: string
+    location?: string | null
     status?: FakeDeviceStatus
     configVersion?: bigint
     areaIds?: string[]
@@ -728,7 +795,7 @@ class InMemoryPrisma {
       id: input.id ?? this.nextId(),
       deviceCode: input.deviceCode,
       name: input.name ?? input.deviceCode,
-      location: null,
+      location: input.location ?? null,
       status: input.status ?? 'active',
       hardwareModel: null,
       firmwareVersion: null,
@@ -1611,6 +1678,8 @@ describe('access event history', () => {
     const device = db.addDevice({
       id: DEVICE_ID,
       deviceCode: 'ESP32-MAIN',
+      name: 'Lector Principal',
+      location: 'Edificio principal',
       areaIds: [areaMain.id, areaLab.id],
     })
 
@@ -1774,6 +1843,143 @@ describe('access event history', () => {
     expect(detailRes.body).toMatchObject({
       id: employeeAEvent.id,
       clientEventId: 'event-employee-a',
+    })
+  })
+
+  it('filters /me/access-events by decision, areaId and date range and rejects invalid ranges with 400', async () => {
+    const { employeeAEvent } = seedHistoryFixture()
+
+    const empALabDenied = db.addEvent({
+      deviceId: DEVICE_ID,
+      clientEventId: 'event-employee-a-lab-denied',
+      cardUid: KNOWN_CARD_UID,
+      areaId: AREA_LAB_ID,
+      decision: 'denied',
+      reasonCode: 'permission_missing',
+      occurredAt: new Date('2026-01-02T11:30:00.000Z'),
+      employeeId: EMPLOYEE_A_ID,
+    })
+    const empALabGranted = db.addEvent({
+      deviceId: DEVICE_ID,
+      clientEventId: 'event-employee-a-lab-granted',
+      cardUid: KNOWN_CARD_UID,
+      areaId: AREA_LAB_ID,
+      decision: 'granted',
+      reasonCode: 'allowed',
+      occurredAt: new Date('2026-01-02T13:00:00.000Z'),
+      employeeId: EMPLOYEE_A_ID,
+    })
+
+    const byDecision = await request(app)
+      .get('/api/v1/me/access-events?decision=denied')
+      .set('Authorization', 'Bearer employee-a-token')
+
+    expect(byDecision.status).toBe(200)
+    expect(byDecision.body.pagination.total).toBe(1)
+    expect(byDecision.body.data).toHaveLength(1)
+    expect(byDecision.body.data[0]).toMatchObject({
+      id: empALabDenied.id,
+      employeeId: EMPLOYEE_A_ID,
+      decision: 'denied',
+    })
+
+    const byArea = await request(app)
+      .get(`/api/v1/me/access-events?areaId=${AREA_LAB_ID}`)
+      .set('Authorization', 'Bearer employee-a-token')
+
+    expect(byArea.status).toBe(200)
+    expect(byArea.body.pagination.total).toBe(2)
+    expect(
+      byArea.body.data.map((event: { id: string }) => event.id),
+    ).toEqual([empALabGranted.id, empALabDenied.id])
+
+    const byDateRange = await request(app)
+      .get(
+        '/api/v1/me/access-events?from=2026-01-02T09:30:00.000Z&to=2026-01-02T12:00:00.000Z',
+      )
+      .set('Authorization', 'Bearer employee-a-token')
+
+    expect(byDateRange.status).toBe(200)
+    expect(byDateRange.body.pagination.total).toBe(2)
+    expect(
+      byDateRange.body.data.map((event: { id: string }) => event.id),
+    ).toEqual([empALabDenied.id, employeeAEvent.id])
+
+    const combinedWithIgnoredEmployeeId = await request(app)
+      .get(
+        `/api/v1/me/access-events?decision=denied&areaId=${AREA_LAB_ID}&from=2026-01-02T11:00:00.000Z&to=2026-01-02T12:00:00.000Z&employeeId=${EMPLOYEE_B_ID}`,
+      )
+      .set('Authorization', 'Bearer employee-a-token')
+
+    expect(combinedWithIgnoredEmployeeId.status).toBe(200)
+    expect(combinedWithIgnoredEmployeeId.body.pagination.total).toBe(1)
+    expect(combinedWithIgnoredEmployeeId.body.data[0]).toMatchObject({
+      id: empALabDenied.id,
+      employeeId: EMPLOYEE_A_ID,
+      areaId: AREA_LAB_ID,
+      decision: 'denied',
+    })
+
+    const invalidDateRange = await request(app)
+      .get(
+        '/api/v1/me/access-events?from=2026-01-03T00:00:00.000Z&to=2026-01-02T00:00:00.000Z',
+      )
+      .set('Authorization', 'Bearer employee-a-token')
+
+    expect(invalidDateRange.status).toBe(400)
+    expect(invalidDateRange.body).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'from must be earlier than or equal to to',
+      },
+    })
+  })
+
+  it('ignores employeeId query parameter and includes area and device summaries in /me/access-events list and detail', async () => {
+    const { device, employeeAEvent } = seedHistoryFixture()
+
+    const listRes = await request(app)
+      .get(`/api/v1/me/access-events?employeeId=${EMPLOYEE_B_ID}`)
+      .set('Authorization', 'Bearer employee-a-token')
+
+    expect(listRes.status).toBe(200)
+    expect(listRes.body.pagination.total).toBe(1)
+    expect(listRes.body.data).toHaveLength(1)
+    expect(listRes.body.data[0]).toMatchObject({
+      id: employeeAEvent.id,
+      employeeId: EMPLOYEE_A_ID,
+      area: {
+        id: AREA_MAIN_ID,
+        code: 'MAIN',
+        name: 'Acceso principal',
+      },
+      device: {
+        id: device.id,
+        deviceCode: 'ESP32-MAIN',
+        name: 'Lector Principal',
+        location: 'Edificio principal',
+      },
+    })
+
+    const detailRes = await request(app)
+      .get(`/api/v1/me/access-events/${employeeAEvent.id}`)
+      .set('Authorization', 'Bearer employee-a-token')
+
+    expect(detailRes.status).toBe(200)
+    expect(detailRes.body).toMatchObject({
+      id: employeeAEvent.id,
+      employeeId: EMPLOYEE_A_ID,
+      area: {
+        id: AREA_MAIN_ID,
+        code: 'MAIN',
+        name: 'Acceso principal',
+      },
+      device: {
+        id: device.id,
+        deviceCode: 'ESP32-MAIN',
+        name: 'Lector Principal',
+        location: 'Edificio principal',
+      },
     })
   })
 })

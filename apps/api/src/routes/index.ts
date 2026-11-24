@@ -12,6 +12,7 @@ import { dashboardRouter } from '../modules/dashboard/dashboard.routes.js'
 import { deviceSyncRouter } from '../modules/device-sync/device-sync.routes.js'
 import { employeesRouter } from '../modules/employees/employees.routes.js'
 import { healthRouter } from '../modules/health/health.routes.js'
+import { meRouter } from '../modules/me/me.routes.js'
 import { openApiRouter } from '../modules/openapi/openapi.routes.js'
 import { rolesRouter } from '../modules/roles/roles.routes.js'
 import { usersRouter } from '../modules/users/users.routes.js'
@@ -33,5 +34,6 @@ v1Router.use('/access-permissions', accessPermissionsRouter)
 v1Router.use('/access-devices', accessDevicesRouter)
 v1Router.use('/devices', deviceSyncRouter)
 v1Router.use('/access-events', accessEventsRouter)
+v1Router.use('/me', meRouter)
 v1Router.use('/me/access-events', myAccessEventsRouter)
 v1Router.use('/dashboard', dashboardRouter)
