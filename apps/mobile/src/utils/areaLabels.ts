@@ -1,8 +1,27 @@
-import type { AccessDecision, AccessReason } from '@scaccess/shared'
+import type {
+  AccessDecision,
+  AccessEventDto,
+  AccessReason,
+  CredentialStatus,
+  EmployeeStatus,
+} from '@scaccess/shared'
 
 export const DECISION_LABELS: Record<AccessDecision, string> = {
   granted: 'Acceso permitido',
   denied: 'Acceso denegado',
+}
+
+export const EMPLOYEE_STATUS_LABELS: Record<EmployeeStatus, string> = {
+  active: 'Activo',
+  inactive: 'Inactivo',
+  suspended: 'Suspendido',
+}
+
+export const CREDENTIAL_STATUS_LABELS: Record<CredentialStatus, string> = {
+  active: 'Activa',
+  blocked: 'Bloqueada',
+  lost: 'Extraviada',
+  retired: 'Retirada',
 }
 
 export const REASON_LABELS: Record<AccessReason, string> = {
@@ -35,4 +54,24 @@ export const KNOWN_AREA_NAMES: Record<string, string> = {
 
 export function getAreaDisplayName(areaId: string): string {
   return KNOWN_AREA_NAMES[areaId] ?? `Área ${areaId.slice(0, 8)}`
+}
+
+export function getEventAreaDisplayName(
+  event: Pick<AccessEventDto, 'areaId' | 'area'>,
+): string {
+  if (event.area) {
+    return `${event.area.name} (${event.area.code})`
+  }
+  return getAreaDisplayName(event.areaId)
+}
+
+export function getEventDeviceDisplayName(
+  event: Pick<AccessEventDto, 'deviceId' | 'device'>,
+): string {
+  if (event.device) {
+    return event.device.location
+      ? `${event.device.name} · ${event.device.location}`
+      : `${event.device.name} (${event.device.deviceCode})`
+  }
+  return `Lector ${event.deviceId.slice(0, 8)}`
 }

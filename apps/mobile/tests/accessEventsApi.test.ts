@@ -65,6 +65,26 @@ describe('accessEventsApi', () => {
     expect(mockApiFetch).toHaveBeenCalledWith('/me/access-events?page=3')
   })
 
+  it('serializa y codifica correctamente todos los filtros en la URL', async () => {
+    mockApiFetch.mockResolvedValueOnce({
+      data: [],
+      pagination: { page: 2, pageSize: 10, total: 0, totalPages: 0 },
+    })
+
+    await listMyAccessEvents({
+      page: 2,
+      pageSize: 10,
+      areaId: 'area/qa?tag=1',
+      decision: 'denied',
+      from: '2026-11-01T00:00:00Z',
+      to: '2026-11-10T23:59:59Z',
+    })
+
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      '/me/access-events?page=2&pageSize=10&areaId=area%2Fqa%3Ftag%3D1&decision=denied&from=2026-11-01T00%3A00%3A00Z&to=2026-11-10T23%3A59%3A59Z',
+    )
+  })
+
   it('codifica correctamente el id al consultar /me/access-events/:id', async () => {
     mockApiFetch.mockResolvedValueOnce(sampleEvent)
 

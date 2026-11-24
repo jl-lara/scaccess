@@ -5,11 +5,15 @@ Aplicación móvil para empleados del **Sistema de Control de Acceso (Accesa)**,
 ## Propósito y reglas de negocio
 
 - **Uso exclusivo para empleados:** Solo pueden ingresar cuentas activas vinculadas a un empleado (`employeeId !== null` en `GET /api/v1/auth/me`).
-- **Aislamiento estricto:** Cada empleado consulta únicamente su propio historial personal (`GET /api/v1/me/access-events`) y el detalle de cada evento propio (`GET /api/v1/me/access-events/:id`). No existen vistas administrativas ni consulta de eventos de terceros.
+- **Aislamiento estricto:** Cada empleado consulta únicamente su propio historial personal (`GET /api/v1/me/access-events`), el detalle de cada evento propio (`GET /api/v1/me/access-events/:id`), sus permisos asignados (`GET /api/v1/me/permissions`) y su perfil con tarjetas RFID (`GET /api/v1/me/profile`). No existen vistas administrativas ni consulta de eventos de terceros.
 - **Cuentas administrativas bloqueadas:** Si inicia sesión una cuenta válida en Supabase Auth pero sin registro de empleado vinculado (`employeeId === null`), `AuthContext` cambia el estado a `'unsupported'` y `AppNavigator` muestra `UnsupportedAccountScreen` con el botón para cerrar sesión.
 - **Requiere conexión a Internet:** No implementa base de datos local *offline-first* (esa capacidad corresponde únicamente al controlador físico ESP32-S3).
-- **Idioma y zona horaria:** Interfaz de usuario y mensajes en español; identificadores de código en inglés. Fechas y horas formateadas en `America/Tijuana` (`src/utils/formatters.ts`) y 6 áreas registradas mapeadas en `src/utils/areaLabels.ts`.
+- **Idioma y zona horaria:** Interfaz de usuario y mensajes en español; identificadores de código en inglés. Fechas y horas formateadas en `America/Tijuana` (`src/utils/formatters.ts`) y resolución dinámica de nombres de áreas y dispositivos desde la API, manteniendo `src/utils/areaLabels.ts` (con las 6 áreas registradas) como fallback.
 - **Resiliencia HTTP y validación:** `apiFetch` (`src/api/httpClient.ts`) adjunta `Authorization: Bearer <token>`, aplica un timeout de `35 000 ms` (`REQUEST_TIMEOUT_MS`) y traduce errores de timeout (`TIMEOUT`) o red (`NETWORK_ERROR`) a `MobileApiError`; `validateLoginForm` (`src/utils/validation.ts`) y `errorMessages.ts` presentan mensajes claros en pantalla.
+- **Navegación en 3 pestañas:** `MainTabsScreen` integra una cabecera unificada y `BottomTabBar` (sin dependencias adicionales) para alternar entre **Historial** (*Historial de accesos*), **Permisos** (*Mis permisos*) y **Perfil** (*Mi perfil*).
+- **Experiencia de consulta y filtros reales:** El historial (`AccessHistoryScreen`) ofrece filtros en `HistoryFilterBar` por decisión (`decision`), área (`areaId`) y rango de fechas (`Hoy`, `7 días`, `30 días`) sobre el endpoint paginado, agrupa eventos por día en `America/Tijuana` (*Hoy*, *Ayer* o fecha completa), muestra una tarjeta de resumen de actividad, destaca eventos con sincronización diferida del ESP32-S3 (desfase `>= 60 s` entre `occurredAt` y `receivedAt`), incluye un skeleton en la carga inicial, permite compartir un comprobante desde el detalle del evento y solicita confirmación antes de cerrar sesión.
+- **Mis permisos y horarios:** `MyPermissionsScreen` consulta `GET /api/v1/me/permissions` y permite alternar entre permisos vigentes y el listado completo (incluyendo próximos, vencidos, revocados o de áreas inactivas) mostrando vigencia, días y horario en la zona horaria del área.
+- **Mi perfil y credencial RFID:** `ProfileScreen` consulta `GET /api/v1/me/profile` para mostrar datos laborales del empleado, el estado y UID de sus tarjetas RFID asignadas, datos de cuenta, selector de tema y cierre de sesión con confirmación.
 
 ## Identidad visual y modo oscuro
 
@@ -62,11 +66,16 @@ apps/mobile/
 │   │   ├── MobileApiError.ts          # Clase de error HTTP/red normalizada
 │   │   ├── accessEventsApi.ts         # listMyAccessEvents() y getMyAccessEventById()
 │   │   ├── authApi.ts                 # getMe() -> UserAccountDto
-│   │   └── httpClient.ts              # apiFetch() con Bearer token, timeout 35s y MobileApiError
+│   │   ├── httpClient.ts              # apiFetch() con Bearer token, timeout 35s y MobileApiError
+│   │   └── meApi.ts                   # getMyProfile() y listMyPermissions()
 │   ├── components/
+│   │   ├── BottomTabBar.tsx           # Barra inferior fija para alternar entre Historial, Permisos y Perfil
 │   │   ├── DecisionBadge.tsx          # Insignia "Acceso permitido" / "Acceso denegado"
 │   │   ├── EmptyState.tsx             # Estado vacío o error con botón de reintentar
 │   │   ├── EventListItem.tsx          # Tarjeta resumen de un evento en el historial
+│   │   ├── HistoryFilterBar.tsx       # Barra horizontal de filtros (decisión, rango de fechas y área)
+│   │   ├── HistorySkeleton.tsx        # Esqueleto de carga inicial para el historial
+│   │   ├── HistorySummaryCard.tsx     # Tarjeta con resumen de actividad del historial
 │   │   └── ThemeToggleButton.tsx      # Selector manual entre modo claro y oscuro
 │   ├── config/
 │   │   ├── env.ts                     # Validación Zod de variables EXPO_PUBLIC_* y valores por defecto
@@ -80,8 +89,11 @@ apps/mobile/
 │   │   └── types.ts                   # Contrato de rutas RootStackParamList
 │   ├── screens/
 │   │   ├── AccessEventDetailScreen.tsx  # Detalle con RefreshControl y banner de error en revalidación
-│   │   ├── AccessHistoryScreen.tsx      # Historial paginado con tarjetas separadas y errores visibles
+│   │   ├── AccessHistoryScreen.tsx      # Historial paginado con filtros, tarjetas separadas y errores visibles
 │   │   ├── LoginScreen.tsx              # Login con wordmark claro/oscuro, validación y mostrar contraseña
+│   │   ├── MainTabsScreen.tsx           # Contenedor principal con cabecera unificada y BottomTabBar
+│   │   ├── MyPermissionsScreen.tsx      # Permisos de acceso y horarios asignados al empleado
+│   │   ├── ProfileScreen.tsx            # Perfil laboral, tarjetas RFID, tema y cierre de sesión
 │   │   └── UnsupportedAccountScreen.tsx # Bloqueo informativo para cuentas sin employeeId
 │   ├── theme/
 │   │   ├── brandAssets.ts             # Selector de los 4 PNG claro/oscuro de Accesa
@@ -89,19 +101,29 @@ apps/mobile/
 │   ├── types/
 │   │   └── assets.d.ts                # Declaración TypeScript para imports *.png
 │   └── utils/
-│       ├── areaLabels.ts              # Etiquetas de decisión, motivos y las 6 áreas registradas
-│       ├── errorMessages.ts           # Traducción uniforme de errores Auth, historial y detalle
+│       ├── accessHistory.ts           # Agrupación diaria, resumen y cálculo de desfase offline
+│       ├── areaLabels.ts              # Etiquetas de decisión, motivos y fallback de áreas/dispositivos
+│       ├── confirmAction.ts           # Diálogo de confirmación multiplataforma (Alert / confirm)
+│       ├── errorMessages.ts           # Traducción uniforme de errores Auth, historial, detalle, permisos y perfil
+│       ├── eventReceipt.ts            # Formato de comprobante compartible del evento
 │       ├── formatters.ts              # Formato de UID RFID y fechas/horas en America/Tijuana
+│       ├── historyFilters.ts          # Estado, rangos de fecha, parámetros de consulta y fusión de áreas
+│       ├── permissionsFormatters.ts   # Estado efectivo y formato de vigencias y horarios de permisos
 │       └── validation.ts              # Validación de correo y contraseña en LoginScreen
 └── tests/
     ├── accessEventsApi.test.ts        # Pruebas de listMyAccessEvents y getMyAccessEventById
-    ├── areaLabels.test.ts             # Pruebas de etiquetas y las 6 áreas
+    ├── accessHistory.test.ts          # Pruebas de agrupación diaria, resumen y desfase offline
+    ├── areaLabels.test.ts             # Pruebas de etiquetas y resolución de áreas/dispositivos
     ├── authApi.test.ts                # Pruebas de getMe (/auth/me)
     ├── brandAssets.test.ts            # Pruebas de selección de logos claro/oscuro
     ├── env.test.ts                    # Pruebas de variables de entorno
-    ├── errorMessages.test.ts          # Pruebas de toSignInMessage, toHistoryError y toDetailError
+    ├── errorMessages.test.ts          # Pruebas de toSignInMessage, toHistoryError, toDetailError, permisos y perfil
+    ├── eventReceipt.test.ts           # Pruebas de buildEventReceiptMessage
     ├── formatters.test.ts             # Pruebas de UID y formato horario
+    ├── historyFilters.test.ts         # Pruebas de filtros de historial, rangos de fechas y áreas
     ├── httpClient.test.ts             # Pruebas de apiFetch (sesión, 200, error HTTP, timeout y red)
+    ├── meApi.test.ts                  # Pruebas de getMyProfile y listMyPermissions
+    ├── permissionsFormatters.test.ts    # Pruebas de estado efectivo, vigencias y horarios de permisos
     ├── storage.test.ts                # Pruebas de createKeyValueStorage (iOS/Android/web)
     ├── theme.test.ts                  # Pruebas de resolveThemeMode y paletas claro/oscuro
     └── validation.test.ts             # Pruebas de validateLoginForm

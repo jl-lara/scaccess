@@ -26,6 +26,8 @@ export function EmptyState({ title, message, actionLabel, onAction }: EmptyState
       {actionLabel !== undefined && onAction !== undefined ? (
         <Pressable
           onPress={onAction}
+          accessibilityRole="button"
+          accessibilityLabel={actionLabel}
           style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
         >
           <Text style={styles.buttonLabel}>{actionLabel}</Text>

@@ -6,8 +6,8 @@ import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { AccessEventDetailScreen } from '../screens/AccessEventDetailScreen'
-import { AccessHistoryScreen } from '../screens/AccessHistoryScreen'
 import { LoginScreen } from '../screens/LoginScreen'
+import { MainTabsScreen } from '../screens/MainTabsScreen'
 import { UnsupportedAccountScreen } from '../screens/UnsupportedAccountScreen'
 import { getBrandAssets } from '../theme/brandAssets'
 import { spacing, type ThemeColors } from '../theme/colors'
@@ -93,8 +93,8 @@ export function AppNavigator() {
     <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator>
         <Stack.Screen
-          name="AccessHistory"
-          component={AccessHistoryScreen}
+          name="MainTabs"
+          component={MainTabsScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

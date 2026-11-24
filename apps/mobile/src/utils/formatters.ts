@@ -1,4 +1,7 @@
-const TIJUANA_TIME_ZONE = 'America/Tijuana'
+export const TIJUANA_TIME_ZONE = 'America/Tijuana'
+
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const ONE_DAY_MS = 86_400_000
 
 /**
  * Agrupa un UID RFID en pares hexadecimales en mayusculas separados por espacio.
@@ -43,4 +46,59 @@ export function formatDateTime(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return '—'
   return `${formatDate(iso)} · ${formatTime(iso)}`
+}
+
+/**
+ * Convierte una fecha ISO a clave de dia `YYYY-MM-DD` en zona horaria de Tijuana.
+ * Devuelve cadena vacia ante fechas invalidas.
+ */
+export function formatDateKey(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIJUANA_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const year = parts.find((part) => part.type === 'year')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+  const day = parts.find((part) => part.type === 'day')?.value
+  if (!year || !month || !day) return ''
+  return `${year}-${month}-${day}`
+}
+
+/**
+ * Formatea una clave `YYYY-MM-DD` como encabezado de dia en espanol
+ * (`Hoy`, `Ayer` o fecha completa capitalizada en Tijuana).
+ */
+export function formatDayHeading(
+  dateKey: string,
+  now: Date = new Date(),
+): string {
+  if (!DATE_KEY_PATTERN.test(dateKey)) return 'Fecha desconocida'
+
+  const todayKey = Number.isNaN(now.getTime())
+    ? ''
+    : formatDateKey(now.toISOString())
+  if (todayKey && dateKey === todayKey) return 'Hoy'
+
+  if (todayKey) {
+    const yesterdayKey = formatDateKey(
+      new Date(new Date(`${todayKey}T12:00:00Z`).getTime() - ONE_DAY_MS).toISOString(),
+    )
+    if (dateKey === yesterdayKey) return 'Ayer'
+  }
+
+  const anchor = new Date(`${dateKey}T12:00:00Z`)
+  if (Number.isNaN(anchor.getTime())) return 'Fecha desconocida'
+
+  const formatted = new Intl.DateTimeFormat('es-MX', {
+    timeZone: TIJUANA_TIME_ZONE,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(anchor)
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1)
 }

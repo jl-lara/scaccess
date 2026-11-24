@@ -124,3 +124,64 @@ export function toDetailError(error: unknown): string {
 
   return 'No se pudo cargar el detalle del evento. Verifica tu conexión e inténtalo de nuevo.'
 }
+
+/** Traduce errores al consultar el perfil del empleado autenticado. */
+export function toProfileError(error: unknown): string {
+  if (error instanceof MobileApiError) {
+    if (error.status === 401) {
+      return 'Tu sesión expiró. Cierra sesión e ingresa de nuevo.'
+    }
+    if (error.status === 403) {
+      return 'Esta cuenta no tiene acceso al perfil de empleado.'
+    }
+    if (error.status === 404) {
+      return 'No se encontró tu perfil de empleado. Contacta a un administrador.'
+    }
+    if (error.status === 0 && error.code === 'TIMEOUT') {
+      return 'El servidor tardó demasiado en responder. Inténtalo de nuevo.'
+    }
+    if (error.status === 0) {
+      return 'Sin conexión a Internet. Revisa tu conexión e inténtalo de nuevo.'
+    }
+    if (error.status >= 500) {
+      return 'El servidor encontró un error al cargar tu perfil. Inténtalo de nuevo.'
+    }
+    return 'No se pudo cargar tu perfil. Inténtalo de nuevo.'
+  }
+
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  if (looksLikeNetworkFailure(message)) {
+    return 'Sin conexión o el servidor tarda en responder. Inténtalo de nuevo.'
+  }
+
+  return 'No se pudo cargar tu perfil. Inténtalo de nuevo.'
+}
+
+/** Traduce errores al consultar los permisos de acceso del empleado autenticado. */
+export function toPermissionsError(error: unknown): string {
+  if (error instanceof MobileApiError) {
+    if (error.status === 401) {
+      return 'Tu sesión expiró. Cierra sesión e ingresa de nuevo.'
+    }
+    if (error.status === 403) {
+      return 'Esta cuenta no tiene acceso a los permisos de empleado.'
+    }
+    if (error.status === 0 && error.code === 'TIMEOUT') {
+      return 'El servidor tardó demasiado en responder. Inténtalo de nuevo.'
+    }
+    if (error.status === 0) {
+      return 'Sin conexión a Internet. Revisa tu conexión e inténtalo de nuevo.'
+    }
+    if (error.status >= 500) {
+      return 'El servidor encontró un error al consultar tus permisos. Inténtalo de nuevo.'
+    }
+    return 'No se pudieron cargar tus permisos. Inténtalo de nuevo.'
+  }
+
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  if (looksLikeNetworkFailure(message)) {
+    return 'Sin conexión o el servidor tarda en responder. Inténtalo de nuevo.'
+  }
+
+  return 'No se pudieron cargar tus permisos. Inténtalo de nuevo.'
+}

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { MobileApiError } from '../src/api/MobileApiError'
-import { toDetailError, toHistoryError, toSignInMessage } from '../src/utils/errorMessages'
+import {
+  toDetailError,
+  toHistoryError,
+  toPermissionsError,
+  toProfileError,
+  toSignInMessage,
+} from '../src/utils/errorMessages'
 
 describe('errorMessages', () => {
   describe('toSignInMessage', () => {
@@ -93,6 +99,61 @@ describe('errorMessages', () => {
       )
       expect(toDetailError(new Error('unexpected'))).toBe(
         'No se pudo cargar el detalle del evento. Verifica tu conexión e inténtalo de nuevo.',
+      )
+    })
+  })
+
+  describe('toProfileError', () => {
+    it('traduce 401, 403, 404, timeout, red, 500 y fallback', () => {
+      expect(toProfileError(new MobileApiError(401, 'UNAUTHORIZED', 'expired'))).toBe(
+        'Tu sesión expiró. Cierra sesión e ingresa de nuevo.',
+      )
+      expect(toProfileError(new MobileApiError(403, 'FORBIDDEN', 'forbidden'))).toBe(
+        'Esta cuenta no tiene acceso al perfil de empleado.',
+      )
+      expect(toProfileError(new MobileApiError(404, 'NOT_FOUND', 'missing'))).toBe(
+        'No se encontró tu perfil de empleado. Contacta a un administrador.',
+      )
+      expect(toProfileError(new MobileApiError(0, 'TIMEOUT', 't'))).toBe(
+        'El servidor tardó demasiado en responder. Inténtalo de nuevo.',
+      )
+      expect(toProfileError(new MobileApiError(0, 'NETWORK_ERROR', 'n'))).toBe(
+        'Sin conexión a Internet. Revisa tu conexión e inténtalo de nuevo.',
+      )
+      expect(toProfileError(new MobileApiError(500, 'INTERNAL_SERVER_ERROR', 'e'))).toBe(
+        'El servidor encontró un error al cargar tu perfil. Inténtalo de nuevo.',
+      )
+      expect(toProfileError(new TypeError('Network request failed'))).toBe(
+        'Sin conexión o el servidor tarda en responder. Inténtalo de nuevo.',
+      )
+      expect(toProfileError(new Error('unexpected'))).toBe(
+        'No se pudo cargar tu perfil. Inténtalo de nuevo.',
+      )
+    })
+  })
+
+  describe('toPermissionsError', () => {
+    it('traduce 401, 403, timeout, red, 500 y fallback', () => {
+      expect(toPermissionsError(new MobileApiError(401, 'UNAUTHORIZED', 'expired'))).toBe(
+        'Tu sesión expiró. Cierra sesión e ingresa de nuevo.',
+      )
+      expect(toPermissionsError(new MobileApiError(403, 'FORBIDDEN', 'forbidden'))).toBe(
+        'Esta cuenta no tiene acceso a los permisos de empleado.',
+      )
+      expect(toPermissionsError(new MobileApiError(0, 'TIMEOUT', 't'))).toBe(
+        'El servidor tardó demasiado en responder. Inténtalo de nuevo.',
+      )
+      expect(toPermissionsError(new MobileApiError(0, 'NETWORK_ERROR', 'n'))).toBe(
+        'Sin conexión a Internet. Revisa tu conexión e inténtalo de nuevo.',
+      )
+      expect(toPermissionsError(new MobileApiError(500, 'INTERNAL_SERVER_ERROR', 'e'))).toBe(
+        'El servidor encontró un error al consultar tus permisos. Inténtalo de nuevo.',
+      )
+      expect(toPermissionsError(new TypeError('Network request failed'))).toBe(
+        'Sin conexión o el servidor tarda en responder. Inténtalo de nuevo.',
+      )
+      expect(toPermissionsError(new Error('unexpected'))).toBe(
+        'No se pudieron cargar tus permisos. Inténtalo de nuevo.',
       )
     })
   })
