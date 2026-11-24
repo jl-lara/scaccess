@@ -7,7 +7,8 @@ import { radii, spacing, type ThemeColors } from '../theme/colors'
 import { getSyncDelayInfo } from '../utils/accessHistory'
 import {
   DECISION_LABELS,
-  getAreaDisplayName,
+  getEventAreaDisplayName,
+  getEventDeviceDisplayName,
   REASON_LABELS,
 } from '../utils/areaLabels'
 import { formatDateTime } from '../utils/formatters'
@@ -26,17 +27,24 @@ export function EventListItem({ event, onPress }: EventListItemProps) {
   const { colors } = useTheme()
   const styles = useMemo(() => createStyles(colors), [colors])
 
-  const areaName = getAreaDisplayName(event.areaId)
+  const areaName = getEventAreaDisplayName(event)
   const dateTime = formatDateTime(event.occurredAt)
+  const deviceName =
+    event.device !== undefined ? getEventDeviceDisplayName(event) : null
   const reasonLabel = REASON_LABELS[event.reasonCode]
   const decisionLabel = DECISION_LABELS[event.decision]
   const syncDelay = getSyncDelayInfo(event.occurredAt, event.receivedAt)
   const delayLabel = syncDelay.isDelayed ? syncDelay.shortLabel : null
 
-  const accessibilityLabel =
-    delayLabel !== null
-      ? `${areaName}, ${decisionLabel}, ${dateTime}, ${reasonLabel}, ${delayLabel}`
-      : `${areaName}, ${decisionLabel}, ${dateTime}, ${reasonLabel}`
+  const accessibilityParts = [areaName, decisionLabel, dateTime]
+  if (deviceName !== null) {
+    accessibilityParts.push(deviceName)
+  }
+  accessibilityParts.push(reasonLabel)
+  if (delayLabel !== null) {
+    accessibilityParts.push(delayLabel)
+  }
+  const accessibilityLabel = accessibilityParts.join(', ')
 
   return (
     <Pressable
@@ -49,6 +57,9 @@ export function EventListItem({ event, onPress }: EventListItemProps) {
       <View style={styles.content}>
         <Text style={styles.areaName}>{areaName}</Text>
         <Text style={styles.dateTime}>{dateTime}</Text>
+        {deviceName !== null ? (
+          <Text style={styles.device}>{deviceName}</Text>
+        ) : null}
         <Text style={styles.reason}>{reasonLabel}</Text>
         {delayLabel !== null ? (
           <View style={styles.delayPill}>
@@ -93,6 +104,11 @@ function createStyles(colors: ThemeColors) {
     dateTime: {
       color: colors.textSecondary,
       fontSize: 13,
+      marginTop: spacing.xs,
+    },
+    device: {
+      color: colors.textMuted,
+      fontSize: 12,
       marginTop: spacing.xs,
     },
     reason: {

@@ -65,4 +65,26 @@ describe('eventReceipt', () => {
     expect(payload.message).toContain('ID de evento: client-evt-999')
     expect(payload.message).toContain('Secuencia del dispositivo: 42')
   })
+
+  it('incluye nombre dinamico de area y linea de lector cuando area y device vienen adjuntos', () => {
+    const payload = buildEventReceiptMessage(
+      makeEvent({
+        areaId: 'custom-area-id',
+        area: {
+          id: 'custom-area-id',
+          code: 'ROBOTICS_LAB',
+          name: 'Laboratorio de Robótica',
+        },
+        device: {
+          id: 'dev-1',
+          deviceCode: 'ESP32-ROB-01',
+          name: 'Lector Robótica',
+          location: 'Edificio B, Piso 2',
+        },
+      }),
+    )
+
+    expect(payload.message).toContain('Área: Laboratorio de Robótica (ROBOTICS_LAB)')
+    expect(payload.message).toContain('Lector: Lector Robótica · Edificio B, Piso 2')
+  })
 })

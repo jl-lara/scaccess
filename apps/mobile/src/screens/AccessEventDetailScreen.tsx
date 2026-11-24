@@ -20,7 +20,11 @@ import { useTheme } from '../context/ThemeContext'
 import type { RootStackParamList } from '../navigation/types'
 import { radii, spacing, type ThemeColors } from '../theme/colors'
 import { getSyncDelayInfo } from '../utils/accessHistory'
-import { REASON_LABELS, getAreaDisplayName } from '../utils/areaLabels'
+import {
+  REASON_LABELS,
+  getEventAreaDisplayName,
+  getEventDeviceDisplayName,
+} from '../utils/areaLabels'
 import { toDetailError } from '../utils/errorMessages'
 import { buildEventReceiptMessage } from '../utils/eventReceipt'
 import { formatCardUid, formatDateTime } from '../utils/formatters'
@@ -186,8 +190,16 @@ export function AccessEventDetailScreen({
 
       <View style={styles.block}>
         <Text style={styles.blockLabel}>Área</Text>
-        <Text style={styles.blockValue}>{getAreaDisplayName(event.areaId)}</Text>
-        <Text style={styles.blockMono}>{event.areaId}</Text>
+        <Text style={styles.blockValue}>{getEventAreaDisplayName(event)}</Text>
+        <Text style={styles.blockMono}>{event.area?.code ?? event.areaId}</Text>
+      </View>
+
+      <View style={styles.block}>
+        <Text style={styles.blockLabel}>Lector / Dispositivo</Text>
+        <Text style={styles.blockValue}>{getEventDeviceDisplayName(event)}</Text>
+        <Text style={styles.blockMono}>
+          {event.device?.deviceCode ?? event.deviceId}
+        </Text>
       </View>
 
       <DetailBlock

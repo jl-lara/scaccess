@@ -1,38 +1,42 @@
-import type { AccessEventDto, PaginatedResponse } from '@scaccess/shared'
-import type { NativeStackScreenProps } from '@react-navigation/native-stack'
+import type {
+  AccessEventDto,
+  MyAccessPermissionDto,
+  PaginatedResponse,
+} from '@scaccess/shared'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   RefreshControl,
   ScrollView,
   SectionList,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { listMyAccessEvents } from '../api/accessEventsApi'
+import { listMyPermissions } from '../api/meApi'
 import { EmptyState } from '../components/EmptyState'
 import { EventListItem } from '../components/EventListItem'
+import { HistoryFilterBar } from '../components/HistoryFilterBar'
 import { HistorySkeleton } from '../components/HistorySkeleton'
 import { HistorySummaryCard } from '../components/HistorySummaryCard'
-import { ThemeToggleButton } from '../components/ThemeToggleButton'
-import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
-import type { RootStackParamList } from '../navigation/types'
-import { getBrandAssets } from '../theme/brandAssets'
 import { radii, spacing, type ThemeColors } from '../theme/colors'
 import {
   groupEventsByDay,
   summarizeAccessEvents,
   type AccessEventSection,
 } from '../utils/accessHistory'
-import { confirmAction } from '../utils/confirmAction'
 import { toHistoryError } from '../utils/errorMessages'
+import {
+  buildHistoryQueryParams,
+  DEFAULT_HISTORY_FILTERS,
+  hasActiveHistoryFilters,
+  mergeAreaOptions,
+  type HistoryFilterState,
+} from '../utils/historyFilters'
 
 function CardSeparator() {
   return <View style={separatorStyle.box} />
@@ -44,14 +48,24 @@ const separatorStyle = StyleSheet.create({
   },
 })
 
-export function AccessHistoryScreen({
-  navigation,
-}: NativeStackScreenProps<RootStackParamList, 'AccessHistory'>) {
-  const { userAccount, signOut } = useAuth()
-  const { colors, isDark } = useTheme()
-  const brandAssets = getBrandAssets(isDark)
+interface AccessHistoryScreenProps {
+  onSelectEvent: (event: AccessEventDto) => void
+}
+
+/**
+ * Pantalla del historial personal de accesos con filtros por decisión,
+ * período y área, resumen de actividad y paginación incremental.
+ */
+export function AccessHistoryScreen({ onSelectEvent }: AccessHistoryScreenProps) {
+  const { colors } = useTheme()
   const styles = useMemo(() => createStyles(colors), [colors])
 
+  const [filters, setFilters] = useState<HistoryFilterState>(
+    DEFAULT_HISTORY_FILTERS,
+  )
+  const [permissionAreas, setPermissionAreas] = useState<
+    MyAccessPermissionDto[]
+  >([])
   const [events, setEvents] = useState<AccessEventDto[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -62,10 +76,26 @@ export function AccessHistoryScreen({
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
   const [slowStart, setSlowStart] = useState(false)
 
+  useEffect(() => {
+    let cancelled = false
+
+    listMyPermissions({ activeOnly: false })
+      .then((res) => {
+        if (!cancelled) {
+          setPermissionAreas(res.data)
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const loadPage = useCallback(
     (pageNumber: number): Promise<PaginatedResponse<AccessEventDto>> =>
-      listMyAccessEvents({ page: pageNumber, pageSize: 20 }),
-    [],
+      listMyAccessEvents(buildHistoryQueryParams(filters, pageNumber, 20)),
+    [filters],
   )
 
   const refresh = useCallback(async () => {
@@ -156,22 +186,20 @@ export function AccessHistoryScreen({
     return () => clearTimeout(timer)
   }, [isInitialLoading])
 
+  const areaOptions = useMemo(
+    () => mergeAreaOptions(permissionAreas, events),
+    [permissionAreas, events],
+  )
   const sections = useMemo(() => groupEventsByDay(events), [events])
   const summary = useMemo(
     () => summarizeAccessEvents(events, totalCount),
     [events, totalCount],
   )
+  const filtersActive = hasActiveHistoryFilters(filters)
 
-  const handleSignOut = useCallback(() => {
-    confirmAction({
-      title: 'Cerrar sesión',
-      message: '¿Seguro que deseas cerrar tu sesión en Accesa Móvil?',
-      confirmLabel: 'Cerrar sesión',
-      cancelLabel: 'Cancelar',
-      destructive: true,
-      onConfirm: signOut,
-    })
-  }, [signOut])
+  const handleResetFilters = useCallback(() => {
+    setFilters(DEFAULT_HISTORY_FILTERS)
+  }, [])
 
   const listHeader =
     error !== null || events.length > 0 ? (
@@ -196,37 +224,13 @@ export function AccessHistoryScreen({
     ) : undefined
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom', 'left', 'right']}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Image
-            source={brandAssets.isotipo}
-            style={styles.headerLogo}
-            resizeMode="contain"
-            accessibilityLabel="Accesa"
-          />
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              Historial de accesos
-            </Text>
-            <Text style={styles.headerEmail} numberOfLines={1}>
-              {userAccount?.email ?? ''}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.headerActions}>
-          <ThemeToggleButton />
-          <TouchableOpacity
-            style={styles.signOutButton}
-            onPress={handleSignOut}
-            accessibilityRole="button"
-            accessibilityLabel="Cerrar sesión"
-            accessibilityHint="Solicita confirmación antes de cerrar tu sesión"
-          >
-            <Text style={styles.signOutText}>Salir</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+    <View style={styles.root}>
+      <HistoryFilterBar
+        filters={filters}
+        areaOptions={areaOptions}
+        onChangeFilters={setFilters}
+        onResetFilters={handleResetFilters}
+      />
 
       {isInitialLoading ? (
         <ScrollView contentContainerStyle={styles.listContent}>
@@ -268,15 +272,7 @@ export function AccessHistoryScreen({
             </View>
           )}
           renderItem={({ item }) => (
-            <EventListItem
-              event={item}
-              onPress={(e) =>
-                navigation.navigate('AccessEventDetail', {
-                  eventId: e.id,
-                  initialEvent: e,
-                })
-              }
-            />
+            <EventListItem event={item} onPress={onSelectEvent} />
           )}
           ItemSeparatorComponent={CardSeparator}
           contentContainerStyle={
@@ -294,10 +290,19 @@ export function AccessHistoryScreen({
           onEndReachedThreshold={0.3}
           ListHeaderComponent={listHeader}
           ListEmptyComponent={
-            <EmptyState
-              title="Sin accesos registrados"
-              message="Aún no tienes eventos de acceso. Cuando pases tu tarjeta RFID por un lector, aparecerán aquí."
-            />
+            filtersActive ? (
+              <EmptyState
+                title="Sin resultados con estos filtros"
+                message="Prueba cambiando la decisión, el período o el área seleccionada."
+                actionLabel="Limpiar filtros"
+                onAction={handleResetFilters}
+              />
+            ) : (
+              <EmptyState
+                title="Sin accesos registrados"
+                message="Aún no tienes eventos de acceso. Cuando pases tu tarjeta RFID por un lector, aparecerán aquí."
+              />
+            )
           }
           ListFooterComponent={
             loading && events.length > 0 ? (
@@ -322,7 +327,7 @@ export function AccessHistoryScreen({
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -331,58 +336,6 @@ function createStyles(colors: ThemeColors) {
     root: {
       flex: 1,
       backgroundColor: colors.background,
-    },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.md,
-      backgroundColor: colors.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.borderSubtle,
-      gap: spacing.sm,
-    },
-    headerLeft: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm + 2,
-    },
-    headerLogo: {
-      width: 24,
-      height: 35,
-    },
-    headerInfo: {
-      flex: 1,
-    },
-    headerTitle: {
-      fontSize: 17,
-      fontWeight: '700',
-      color: colors.textPrimary,
-    },
-    headerEmail: {
-      fontSize: 12,
-      color: colors.textMuted,
-      marginTop: 2,
-    },
-    headerActions: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-    },
-    signOutButton: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs + 2,
-      borderRadius: radii.pill,
-      backgroundColor: colors.surfaceElevated,
-      borderWidth: 1,
-      borderColor: colors.borderStrong,
-    },
-    signOutText: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: colors.textSecondary,
     },
     centered: {
       flex: 1,
