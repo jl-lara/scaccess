@@ -1,8 +1,16 @@
 import { Router } from 'express'
 import { requireAuth, requireEmployeeAccount } from '../../middleware/auth.js'
 import { validateRequest } from '../../middleware/validate.js'
-import { getMyProfileHandler, listMyPermissionsHandler } from './me.controller.js'
-import { myPermissionsQuerySchema } from './me.schemas.js'
+import {
+  getMyProfileHandler,
+  listMyPermissionsHandler,
+  reportMyCredentialLostHandler,
+} from './me.controller.js'
+import {
+  myCredentialIdParamsSchema,
+  myPermissionsQuerySchema,
+  reportLostCredentialBodySchema,
+} from './me.schemas.js'
 
 /**
  * Employee self-service routes for the mobile app. The employee identity
@@ -18,4 +26,15 @@ meRouter.get(
   requireEmployeeAccount,
   validateRequest({ query: myPermissionsQuerySchema }),
   listMyPermissionsHandler,
+)
+
+meRouter.post(
+  '/credentials/:id/report-lost',
+  requireAuth,
+  requireEmployeeAccount,
+  validateRequest({
+    params: myCredentialIdParamsSchema,
+    body: reportLostCredentialBodySchema,
+  }),
+  reportMyCredentialLostHandler,
 )

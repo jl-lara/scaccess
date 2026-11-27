@@ -2,11 +2,15 @@ import type {
   MyAccessPermissionDto,
   MyPermissionsResponseDto,
   MyProfileResponseDto,
+  ReportLostCredentialResponseDto,
 } from '@scaccess/shared'
 import { getPrismaClient } from '../../config/prisma.js'
 import { ApiError } from '../../utils/ApiError.js'
+import { bumpDevicesConfigVersion } from '../../utils/configVersion.js'
 import { toUserAccountDto } from '../users/users.service.js'
-import type { MyPermissionsQuery } from './me.schemas.js'
+import type { MyPermissionsQuery, ReportLostCredentialBody } from './me.schemas.js'
+
+export const DEFAULT_LOST_REPORT_REASON = 'Reportada como extraviada por el empleado'
 
 /**
  * Loads the authenticated employee's account, employee record, and assigned
@@ -58,6 +62,7 @@ export async function getMyProfile(
       status: c.status,
       issuedAt: c.issuedAt ? c.issuedAt.toISOString() : null,
       deactivatedAt: c.deactivatedAt ? c.deactivatedAt.toISOString() : null,
+      deactivationReason: c.deactivationReason,
     })),
   }
 }
@@ -100,4 +105,52 @@ export async function listMyPermissions(
     .sort((a, b) => a.area.name.localeCompare(b.area.name, 'es'))
 
   return { data }
+}
+
+/**
+ * Marks one of the authenticated employee's active RFID credentials as lost
+ * and bumps the device sync configuration version.
+ */
+export async function reportMyCredentialLost(
+  employeeId: string,
+  credentialId: string,
+  input: ReportLostCredentialBody,
+): Promise<ReportLostCredentialResponseDto> {
+  const prisma = getPrismaClient()
+  const credential = await prisma.credential.findUnique({ where: { id: credentialId } })
+
+  if (!credential || credential.employeeId !== employeeId) {
+    throw ApiError.notFound('Credential not found')
+  }
+
+  if (credential.status !== 'active') {
+    throw ApiError.conflict('Only active credentials can be reported as lost')
+  }
+
+  const trimmedReason = input.reason?.trim()
+  const deactivationReason =
+    trimmedReason && trimmedReason.length > 0 ? trimmedReason : DEFAULT_LOST_REPORT_REASON
+
+  const updated = await prisma.credential.update({
+    where: { id: credential.id },
+    data: {
+      status: 'lost',
+      deactivatedAt: new Date(),
+      deactivationReason,
+    },
+  })
+
+  await bumpDevicesConfigVersion()
+
+  return {
+    credential: {
+      id: updated.id,
+      cardUid: updated.cardUid,
+      label: updated.label,
+      status: updated.status,
+      issuedAt: updated.issuedAt ? updated.issuedAt.toISOString() : null,
+      deactivatedAt: updated.deactivatedAt ? updated.deactivatedAt.toISOString() : null,
+      deactivationReason: updated.deactivationReason,
+    },
+  }
 }

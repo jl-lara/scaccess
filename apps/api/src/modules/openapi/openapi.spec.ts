@@ -156,6 +156,10 @@ const myPermissionsResponse = jsonResponse(
   'Permisos de acceso del empleado autenticado.',
   schemaRef('MyPermissionsResponse'),
 )
+const reportLostCredentialResponse = jsonResponse(
+  'Credencial RFID marcada como extraviada.',
+  schemaRef('ReportLostCredentialResponse'),
+)
 const dashboardResponse = jsonResponse(
   'Resumen agregado para el dashboard.',
   schemaRef('DashboardSummary'),
@@ -851,6 +855,24 @@ export const openApiDocument: OpenApiDocument = {
           status: schemaRef('CredentialStatus'),
           issuedAt: { type: ['string', 'null'], format: 'date-time' },
           deactivatedAt: { type: ['string', 'null'], format: 'date-time' },
+          deactivationReason: { type: ['string', 'null'] },
+        },
+      },
+      ReportLostCredentialRequest: {
+        type: 'object',
+        properties: {
+          reason: {
+            type: 'string',
+            maxLength: 500,
+            description: 'Motivo opcional del reporte de extravio.',
+          },
+        },
+      },
+      ReportLostCredentialResponse: {
+        type: 'object',
+        required: ['credential'],
+        properties: {
+          credential: schemaRef('MyCredentialSummary'),
         },
       },
       MyProfileResponse: {
@@ -1856,6 +1878,30 @@ export const openApiDocument: OpenApiDocument = {
           '401': unauthorizedResponse,
           '403': forbiddenResponse,
           '404': notFoundResponse,
+        },
+      },
+    },
+    '/me/credentials/{id}/report-lost': {
+      post: {
+        tags: ['Historial'],
+        summary: 'Reportar mi tarjeta RFID como extraviada',
+        description:
+          'App movil. Permite al empleado autenticado marcar una credencial RFID activa ' +
+          'propia como extraviada y propagar la revocacion a los controladores ESP32-S3.',
+        operationId: 'reportMyCredentialLost',
+        security: supabaseSecurity,
+        parameters: [uuidPathParameter('id', 'Identificador de la credencial RFID.')],
+        requestBody: {
+          required: false,
+          content: jsonContent(schemaRef('ReportLostCredentialRequest')),
+        },
+        responses: {
+          '200': reportLostCredentialResponse,
+          '400': validationResponse,
+          '401': unauthorizedResponse,
+          '403': forbiddenResponse,
+          '404': notFoundResponse,
+          '409': conflictResponse,
         },
       },
     },
