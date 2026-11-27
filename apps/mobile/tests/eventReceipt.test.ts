@@ -26,23 +26,27 @@ function makeEvent(overrides: Partial<AccessEventDto> = {}): AccessEventDto {
 }
 
 describe('eventReceipt', () => {
-  it('construye comprobante para evento permitido en tiempo real sin secuencia de dispositivo', () => {
+  it('construye comprobante para evento permitido en tiempo real con etiquetas claras', () => {
     const payload = buildEventReceiptMessage(makeEvent())
 
     expect(payload.title).toBe('Comprobante de acceso — Accesa')
     expect(payload.message).toContain('Comprobante de evento de acceso — Accesa')
     expect(payload.message).toContain('Resultado: Acceso permitido')
     expect(payload.message).toContain('Motivo: Autorizado')
-    expect(payload.message).toContain('Área: Acceso Principal (MAIN_ENTRANCE)')
+    expect(payload.message).toContain('Área: Acceso Principal')
+    expect(payload.message).not.toContain('(MAIN_ENTRANCE)')
+    expect(payload.message).toContain('Fecha y hora:')
+    expect(payload.message).toContain('Registrado en sistema:')
     expect(payload.message).toContain(
       'Sincronización: Sincronizado en tiempo real',
     )
     expect(payload.message).toContain('Tarjeta RFID: 04 A1 B2 C3 D4 E5 F6')
-    expect(payload.message).toContain('ID de evento: client-evt-001')
+    expect(payload.message).toContain('Referencia: client-evt-001')
+    expect(payload.message).not.toContain('Lector:')
     expect(payload.message).not.toContain('Secuencia del dispositivo:')
   })
 
-  it('construye comprobante para evento denegado diferido con secuencia de dispositivo', () => {
+  it('construye comprobante para evento denegado diferido sin exponer detalles de lector ni secuencia', () => {
     const payload = buildEventReceiptMessage(
       makeEvent({
         clientEventId: 'client-evt-999',
@@ -58,18 +62,23 @@ describe('eventReceipt', () => {
     expect(payload.title).toBe('Comprobante de acceso — Accesa')
     expect(payload.message).toContain('Resultado: Acceso denegado')
     expect(payload.message).toContain('Motivo: Fuera de horario permitido')
-    expect(payload.message).toContain('Área: Área 99999999')
+    expect(payload.message).toContain('Área: Área registrada')
+    expect(payload.message).not.toContain('99999999')
+    expect(payload.message).toContain('Fecha y hora:')
+    expect(payload.message).toContain('Registrado en sistema:')
     expect(payload.message).toContain(
       'Sincronización: Lectura offline sincronizada tras 5 min',
     )
-    expect(payload.message).toContain('ID de evento: client-evt-999')
-    expect(payload.message).toContain('Secuencia del dispositivo: 42')
+    expect(payload.message).toContain('Referencia: client-evt-999')
+    expect(payload.message).not.toContain('Lector:')
+    expect(payload.message).not.toContain('Secuencia del dispositivo:')
   })
 
-  it('incluye nombre dinamico de area y linea de lector cuando area y device vienen adjuntos', () => {
+  it('incluye nombre limpio de area sin lector ni secuencia aunque area, device y deviceSequence vengan adjuntos', () => {
     const payload = buildEventReceiptMessage(
       makeEvent({
         areaId: 'custom-area-id',
+        deviceSequence: '108',
         area: {
           id: 'custom-area-id',
           code: 'ROBOTICS_LAB',
@@ -84,7 +93,9 @@ describe('eventReceipt', () => {
       }),
     )
 
-    expect(payload.message).toContain('Área: Laboratorio de Robótica (ROBOTICS_LAB)')
-    expect(payload.message).toContain('Lector: Lector Robótica · Edificio B, Piso 2')
+    expect(payload.message).toContain('Área: Laboratorio de Robótica')
+    expect(payload.message).not.toContain('(ROBOTICS_LAB)')
+    expect(payload.message).not.toContain('Lector:')
+    expect(payload.message).not.toContain('Secuencia del dispositivo:')
   })
 })

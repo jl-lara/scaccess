@@ -9,7 +9,6 @@ export type MainTabKey = 'history' | 'permissions' | 'profile'
 interface TabItem {
   key: MainTabKey
   label: string
-  shortTag: string
   accessibilityLabel: string
 }
 
@@ -17,19 +16,16 @@ const TABS: readonly TabItem[] = [
   {
     key: 'history',
     label: 'Historial',
-    shortTag: 'REG',
     accessibilityLabel: 'Pestaña Historial de accesos',
   },
   {
     key: 'permissions',
     label: 'Permisos',
-    shortTag: 'ÁREAS',
     accessibilityLabel: 'Pestaña Mis permisos y áreas',
   },
   {
     key: 'profile',
     label: 'Perfil',
-    shortTag: 'RFID',
     accessibilityLabel: 'Pestaña Mi perfil y credencial RFID',
   },
 ]
@@ -61,9 +57,6 @@ export function BottomTabBar({ activeTab, onSelectTab }: BottomTabBarProps) {
               isActive ? styles.tabActive : pressed && styles.tabPressed,
             ]}
           >
-            <Text style={[styles.shortTag, isActive && styles.textActive]}>
-              {tab.shortTag}
-            </Text>
             <Text style={[styles.label, isActive && styles.textActive]}>
               {tab.label}
             </Text>
@@ -87,7 +80,7 @@ function createStyles(colors: ThemeColors) {
     },
     tab: {
       flex: 1,
-      minHeight: 48,
+      minHeight: 44,
       borderRadius: radii.md,
       borderWidth: 1,
       borderColor: 'transparent',
@@ -104,14 +97,8 @@ function createStyles(colors: ThemeColors) {
     tabPressed: {
       backgroundColor: colors.surfaceHover,
     },
-    shortTag: {
-      fontSize: 10,
-      fontWeight: '600',
-      letterSpacing: 0.6,
-      color: colors.textMuted,
-    },
     label: {
-      fontSize: 12,
+      fontSize: 13,
       fontWeight: '600',
       color: colors.textMuted,
     },

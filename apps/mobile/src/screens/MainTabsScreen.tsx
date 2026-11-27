@@ -29,7 +29,7 @@ const TAB_TITLES: Record<MainTabKey, string> = {
 export function MainTabsScreen({
   navigation,
 }: NativeStackScreenProps<RootStackParamList, 'MainTabs'>) {
-  const { userAccount, signOut } = useAuth()
+  const { signOut } = useAuth()
   const { colors, isDark } = useTheme()
   const brandAssets = getBrandAssets(isDark)
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -67,18 +67,13 @@ export function MainTabsScreen({
             resizeMode="contain"
             accessibilityLabel="Accesa"
           />
-          <View style={styles.headerTitleGroup}>
-            <Text
-              style={styles.title}
-              numberOfLines={1}
-              accessibilityRole="header"
-            >
-              {TAB_TITLES[activeTab]}
-            </Text>
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {userAccount?.email ?? ''}
-            </Text>
-          </View>
+          <Text
+            style={styles.title}
+            numberOfLines={1}
+            accessibilityRole="header"
+          >
+            {TAB_TITLES[activeTab]}
+          </Text>
         </View>
 
         <View style={styles.headerActions}>
@@ -141,19 +136,11 @@ function createStyles(colors: ThemeColors) {
       width: 24,
       height: 35,
     },
-    headerTitleGroup: {
-      flex: 1,
-      minWidth: 0,
-      gap: 1,
-    },
     title: {
+      flex: 1,
       fontSize: 17,
       fontWeight: '700',
       color: colors.textPrimary,
-    },
-    subtitle: {
-      fontSize: 12,
-      color: colors.textMuted,
     },
     headerActions: {
       flexDirection: 'row',

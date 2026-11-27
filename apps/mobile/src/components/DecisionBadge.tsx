@@ -8,27 +8,37 @@ import { DECISION_LABELS } from '../utils/areaLabels'
 
 interface DecisionBadgeProps {
   decision: AccessDecision
+  compact?: boolean
+}
+
+const COMPACT_DECISION_LABELS: Record<AccessDecision, string> = {
+  granted: 'Permitido',
+  denied: 'Denegado',
 }
 
 /**
  * Insignia (pill) que resume la decision de un evento de acceso.
- * El texto ya es explicito ("Acceso permitido" / "Acceso denegado"),
- * por lo que no depende solo del color para comunicar el estado.
+ * El texto ya es explicito ("Acceso permitido" / "Acceso denegado",
+ * o su version compacta "Permitido" / "Denegado"), por lo que no depende
+ * solo del color para comunicar el estado.
  */
-export function DecisionBadge({ decision }: DecisionBadgeProps) {
+export function DecisionBadge({ decision, compact = false }: DecisionBadgeProps) {
   const { colors } = useTheme()
   const styles = useMemo(() => createStyles(colors), [colors])
   const isGranted = decision === 'granted'
-  const label = DECISION_LABELS[decision]
+  const accessibilityLabel = DECISION_LABELS[decision]
+  const displayLabel = compact
+    ? COMPACT_DECISION_LABELS[decision]
+    : accessibilityLabel
 
   return (
     <View
       accessible
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel}
       style={[styles.badge, isGranted ? styles.granted : styles.denied]}
     >
       <Text style={[styles.label, isGranted ? styles.grantedText : styles.deniedText]}>
-        {label}
+        {displayLabel}
       </Text>
     </View>
   )

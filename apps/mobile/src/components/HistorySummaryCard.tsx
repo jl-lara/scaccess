@@ -77,7 +77,7 @@ export function HistorySummaryCard({ summary }: HistorySummaryCardProps) {
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <Text style={styles.title} accessibilityRole="header">
-          Resumen de actividad
+          Tu actividad
         </Text>
         <Text style={styles.subtitle}>{subtitle}</Text>
       </View>
@@ -125,9 +125,9 @@ function createStyles(colors: ThemeColors) {
       borderColor: colors.borderSubtle,
       borderWidth: 1,
       borderRadius: radii.lg,
-      padding: spacing.lg,
+      padding: spacing.md + 2,
       marginBottom: spacing.md,
-      gap: spacing.md,
+      gap: spacing.sm + 2,
     },
     headerRow: {
       flexDirection: 'row',
@@ -154,7 +154,7 @@ function createStyles(colors: ThemeColors) {
       flex: 1,
       borderWidth: 1,
       borderRadius: radii.md,
-      paddingVertical: spacing.sm + 2,
+      paddingVertical: spacing.sm,
       paddingHorizontal: spacing.sm,
       alignItems: 'center',
       justifyContent: 'center',
