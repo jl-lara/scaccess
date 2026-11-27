@@ -47,11 +47,15 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
-          pg_dump --version
+          test -x /usr/lib/postgresql/17/bin/pg_dump
+          test -x /usr/lib/postgresql/17/bin/pg_restore
+          /usr/lib/postgresql/17/bin/pg_dump --version
+          echo "PG17_BINDIR=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
 
       - name: Dump public schema and verify integrity
         env:
           SUPABASE_DB_BACKUP_URL: ${{ secrets.SUPABASE_DB_BACKUP_URL }}
+          PGSSLMODE: require
         run: |
           set -euo pipefail
           TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
@@ -60,20 +64,40 @@ jobs:
           mkdir -p backups
           DUMP_FILE="backups/scaccess-${TIMESTAMP}.dump"
 
-          pg_dump "$SUPABASE_DB_BACKUP_URL" \
+          if [[ "$SUPABASE_DB_BACKUP_URL" != postgresql://* && "$SUPABASE_DB_BACKUP_URL" != postgres://* ]]; then
+            echo "::error::SUPABASE_DB_BACKUP_URL no tiene un formato URI valido."
+            exit 1
+          fi
+          if [[ "$SUPABASE_DB_BACKUP_URL" != *":5432/"* || "$SUPABASE_DB_BACKUP_URL" != *".pooler.supabase.com"* ]]; then
+            echo "::error::SUPABASE_DB_BACKUP_URL debe usar el Session Pooler de Supabase (puerto 5432)."
+            exit 1
+          fi
+          USER_INFO="${SUPABASE_DB_BACKUP_URL#*://}"
+          USER_INFO="${USER_INFO%%@*}"
+          USER_NAME="${USER_INFO%%:*}"
+          if [[ "$USER_NAME" != postgres.* ]]; then
+            echo "::error::SUPABASE_DB_BACKUP_URL debe usar el usuario postgres.<project-ref>."
+            exit 1
+          fi
+
+          if ! "$PG17_BINDIR/pg_dump" "$SUPABASE_DB_BACKUP_URL" \
             --format=custom \
             --compress=9 \
             --no-owner \
             --no-acl \
             --schema=public \
-            --file="$DUMP_FILE"
+            --file="$DUMP_FILE"; then
+            rm -f "$DUMP_FILE"
+            echo "::error::pg_dump fallo al conectarse. Verifica que SUPABASE_DB_BACKUP_URL use el usuario postgres.<project-ref>, la contraseña actual de Postgres y el puerto 5432 del Session Pooler."
+            exit 1
+          fi
 
           if [ ! -s "$DUMP_FILE" ]; then
             echo "::error::El archivo de respaldo esta vacio."
             exit 1
           fi
 
-          pg_restore --list "$DUMP_FILE" > backups/manifest.txt
+          "$PG17_BINDIR/pg_restore" --list "$DUMP_FILE" > backups/manifest.txt
           for table in employees credentials areas access_permissions access_events access_devices; do
             if ! grep -q "TABLE DATA public ${table} " backups/manifest.txt; then
               echo "::error::La tabla critica public.${table} no aparece en el respaldo."
@@ -116,11 +140,6 @@ jobs:
           if-no-files-found: error
 
       - name: Upload backup to S3 / Cloudflare R2 (optional)
-        if: >-
-          secrets.BACKUP_S3_BUCKET != '' &&
-          secrets.BACKUP_S3_ENDPOINT != '' &&
-          secrets.BACKUP_S3_ACCESS_KEY_ID != '' &&
-          secrets.BACKUP_S3_SECRET_ACCESS_KEY != ''
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
@@ -128,6 +147,11 @@ jobs:
           BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
         run: |
           set -euo pipefail
+          if [ -z "${BACKUP_S3_BUCKET:-}" ] || [ -z "${BACKUP_S3_ENDPOINT:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            echo "Secretos BACKUP_S3_* no configurados; se omite la subida externa a S3/R2."
+            exit 0
+          fi
+
           aws s3 cp "$FINAL_BACKUP_FILE" "s3://${BACKUP_S3_BUCKET}/scaccess/$(basename "$FINAL_BACKUP_FILE")" \
             --endpoint-url "$BACKUP_S3_ENDPOINT"
           aws s3 cp "${FINAL_BACKUP_FILE}.sha256" "s3://${BACKUP_S3_BUCKET}/scaccess/$(basename "${FINAL_BACKUP_FILE}.sha256")" \

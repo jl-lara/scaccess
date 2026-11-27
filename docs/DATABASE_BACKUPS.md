@@ -42,6 +42,8 @@ Ve a tu repositorio en **GitHub → Settings → Secrets and variables → Actio
 
 > **Importante:** Nunca guardes cadenas de conexión ni llaves de cifrado en archivos del repositorio. Todos los archivos en `backups/` están excluidos en `.gitignore`.
 
+> **Formato requerido:** El usuario del Session Pooler debe ser `postgres.<project-ref>` y la contraseña debe ser la contraseña actual de Postgres. URL-encode los caracteres especiales de la contraseña al copiar la cadena de conexión. El puerto debe ser `5432`; el puerto `6543` corresponde al Transaction Pooler y no es compatible con `pg_dump`.
+
 ---
 
 ## Respaldo manual desde tu equipo
