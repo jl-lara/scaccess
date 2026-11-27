@@ -17,6 +17,7 @@ vi.mock('../src/config/prisma.js', () => ({
 type FakeAccountStatus = 'active' | 'disabled'
 type FakeEmployeeStatus = 'active' | 'inactive' | 'suspended'
 type FakeCredentialStatus = 'active' | 'blocked' | 'lost' | 'retired'
+type FakeDeviceStatus = 'active' | 'inactive'
 
 interface FakeRole {
   id: string
@@ -98,6 +99,12 @@ interface FakeAccessPermission {
   updatedAt: Date
 }
 
+interface FakeAccessDevice {
+  id: string
+  status: FakeDeviceStatus
+  configVersion: bigint
+}
+
 interface UserQueryArgs {
   where?: { id?: string; authUserId?: string }
   include?: {
@@ -114,10 +121,32 @@ interface CredentialQueryArgs {
   orderBy?: { createdAt?: 'asc' | 'desc' }
 }
 
+interface CredentialFindUniqueArgs {
+  where: { id?: string; cardUid?: string }
+}
+
+interface CredentialUpdateArgs {
+  where: { id: string }
+  data: {
+    label?: string | null
+    status?: FakeCredentialStatus
+    deactivatedAt?: Date | null
+    deactivationReason?: string | null
+    updatedAt?: Date
+  }
+}
+
 interface AccessPermissionQueryArgs {
   where?: { employeeId?: string; revokedAt?: null | Date }
   include?: { area?: boolean }
   orderBy?: { createdAt?: 'asc' | 'desc' }
+}
+
+interface AccessDeviceUpdateManyArgs {
+  where?: { status?: FakeDeviceStatus }
+  data: {
+    configVersion?: bigint | { increment?: bigint | number }
+  }
 }
 
 function createFakePrisma() {
@@ -129,6 +158,7 @@ function createFakePrisma() {
     credentials: [] as FakeCredential[],
     areas: [] as FakeArea[],
     permissions: [] as FakeAccessPermission[],
+    devices: [] as FakeAccessDevice[],
   }
 
   let idCounter = 0
@@ -231,6 +261,7 @@ function createFakePrisma() {
     status?: FakeCredentialStatus
     issuedAt?: Date | null
     deactivatedAt?: Date | null
+    deactivationReason?: string | null
     createdAt?: Date
   }): FakeCredential {
     const timestamp = input.createdAt ?? new Date('2025-02-01T10:00:00.000Z')
@@ -242,7 +273,7 @@ function createFakePrisma() {
       status: input.status ?? 'active',
       issuedAt: input.issuedAt ?? null,
       deactivatedAt: input.deactivatedAt ?? null,
-      deactivationReason: null,
+      deactivationReason: input.deactivationReason ?? null,
       createdAt: timestamp,
       updatedAt: timestamp,
     }
@@ -300,6 +331,20 @@ function createFakePrisma() {
     return permission
   }
 
+  function seedDevice(input: {
+    id: string
+    status?: FakeDeviceStatus
+    configVersion?: bigint
+  }): FakeAccessDevice {
+    const device: FakeAccessDevice = {
+      id: input.id,
+      status: input.status ?? 'active',
+      configVersion: input.configVersion ?? 1n,
+    }
+    db.devices.push(device)
+    return device
+  }
+
   function reset(): void {
     db.roles.length = 0
     db.users.length = 0
@@ -308,6 +353,7 @@ function createFakePrisma() {
     db.credentials.length = 0
     db.areas.length = 0
     db.permissions.length = 0
+    db.devices.length = 0
     idCounter = 0
   }
 
@@ -376,6 +422,38 @@ function createFakePrisma() {
 
         return items.map((item) => ({ ...item }))
       },
+      findUnique: async (args: CredentialFindUniqueArgs): Promise<FakeCredential | null> => {
+        const credential = db.credentials.find((candidate) => {
+          if (args.where.id !== undefined && candidate.id !== args.where.id) {
+            return false
+          }
+          if (args.where.cardUid !== undefined && candidate.cardUid !== args.where.cardUid) {
+            return false
+          }
+          return true
+        })
+        return credential ? { ...credential } : null
+      },
+      update: async (args: CredentialUpdateArgs): Promise<FakeCredential> => {
+        const credential = db.credentials.find((candidate) => candidate.id === args.where.id)
+        if (!credential) {
+          throw new Error(`Credential not found in fake prisma: ${args.where.id}`)
+        }
+        if (args.data.label !== undefined) {
+          credential.label = args.data.label
+        }
+        if (args.data.status !== undefined) {
+          credential.status = args.data.status
+        }
+        if (args.data.deactivatedAt !== undefined) {
+          credential.deactivatedAt = args.data.deactivatedAt
+        }
+        if (args.data.deactivationReason !== undefined) {
+          credential.deactivationReason = args.data.deactivationReason
+        }
+        credential.updatedAt = args.data.updatedAt ?? new Date()
+        return { ...credential }
+      },
     },
     accessPermission: {
       findMany: async (
@@ -411,9 +489,29 @@ function createFakePrisma() {
         })
       },
     },
+    accessDevice: {
+      updateMany: async (args: AccessDeviceUpdateManyArgs): Promise<{ count: number }> => {
+        let count = 0
+        for (const device of db.devices) {
+          if (args.where?.status !== undefined && device.status !== args.where.status) {
+            continue
+          }
+          if (args.data.configVersion !== undefined) {
+            if (typeof args.data.configVersion === 'bigint') {
+              device.configVersion = args.data.configVersion
+            } else if (args.data.configVersion.increment !== undefined) {
+              device.configVersion += BigInt(args.data.configVersion.increment)
+            }
+          }
+          count += 1
+        }
+        return { count }
+      },
+    },
   }
 
   return {
+    db,
     client,
     reset,
     seedRole,
@@ -422,6 +520,7 @@ function createFakePrisma() {
     seedCredential,
     seedArea,
     seedPermission,
+    seedDevice,
   }
 }
 
@@ -451,6 +550,19 @@ const AREA_LAB_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const AREA_WAREHOUSE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 const AREA_ARCHIVE_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 const AREA_SERVER_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+
+const CREDENTIAL_ACTIVE_ID = '11111111-aaaa-4111-8111-111111111111'
+const CREDENTIAL_RETIRED_ID = '22222222-aaaa-4222-8222-222222222222'
+const CREDENTIAL_OTHER_ID = '33333333-aaaa-4333-8333-333333333333'
+const CREDENTIAL_BLOCKED_ID = '44444444-aaaa-4444-8444-444444444444'
+const CREDENTIAL_LOST_ID = '55555555-aaaa-4555-8555-555555555555'
+const MISSING_CREDENTIAL_ID = '66666666-aaaa-4666-8666-666666666666'
+
+const DEVICE_ACTIVE_1_ID = '11111111-bbbb-4111-8111-111111111111'
+const DEVICE_ACTIVE_2_ID = '22222222-bbbb-4222-8222-222222222222'
+const DEVICE_INACTIVE_ID = '33333333-bbbb-4333-8333-333333333333'
+
+const DEFAULT_LOST_REPORT_REASON = 'Reportada como extraviada por el empleado'
 
 const employeeUser: AuthenticatedUser = {
   id: EMPLOYEE_USER_ID,
@@ -548,35 +660,56 @@ function seedBaseData(): void {
 
   // Credentials for authenticated employee + another employee
   fake.seedCredential({
-    id: 'cred-emp-older',
+    id: CREDENTIAL_RETIRED_ID,
     employeeId: EMPLOYEE_ID,
     cardUid: '04AABB1122',
     label: 'Tarjeta anterior',
     status: 'retired',
     issuedAt: new Date('2023-09-01T09:00:00.000Z'),
     deactivatedAt: new Date('2024-06-01T18:00:00.000Z'),
+    deactivationReason: null,
     createdAt: new Date('2023-09-01T09:00:00.000Z'),
   })
 
   fake.seedCredential({
-    id: 'cred-emp-active',
+    id: CREDENTIAL_ACTIVE_ID,
     employeeId: EMPLOYEE_ID,
     cardUid: '04CCDD3344',
     label: 'Tarjeta principal',
     status: 'active',
     issuedAt: new Date('2024-06-02T10:00:00.000Z'),
     deactivatedAt: null,
+    deactivationReason: null,
     createdAt: new Date('2024-06-02T10:00:00.000Z'),
   })
 
   fake.seedCredential({
-    id: 'cred-other-emp',
+    id: CREDENTIAL_OTHER_ID,
     employeeId: OTHER_EMPLOYEE_ID,
     cardUid: '04EEFF5566',
     label: 'Tarjeta ajena',
     status: 'active',
     issuedAt: new Date('2024-01-10T10:00:00.000Z'),
     createdAt: new Date('2024-01-10T10:00:00.000Z'),
+  })
+
+  // Access devices (active devices must bump configVersion on credential updates; inactive must not)
+  fake.seedDevice({
+    id: DEVICE_ACTIVE_1_ID,
+    status: 'active',
+    configVersion: 1n,
+  })
+
+  fake.seedDevice({
+    id: DEVICE_ACTIVE_2_ID,
+    status: 'active',
+    configVersion: 5n,
+  })
+
+  fake.seedDevice({
+    id: DEVICE_INACTIVE_ID,
+    status: 'inactive',
+    configVersion: 3n,
   })
 
   // Areas
@@ -724,26 +857,28 @@ describe('GET /api/v1/me/profile', () => {
       },
       credentials: [
         {
-          id: 'cred-emp-active',
+          id: CREDENTIAL_ACTIVE_ID,
           cardUid: '04CCDD3344',
           label: 'Tarjeta principal',
           status: 'active',
           issuedAt: '2024-06-02T10:00:00.000Z',
           deactivatedAt: null,
+          deactivationReason: null,
         },
         {
-          id: 'cred-emp-older',
+          id: CREDENTIAL_RETIRED_ID,
           cardUid: '04AABB1122',
           label: 'Tarjeta anterior',
           status: 'retired',
           issuedAt: '2023-09-01T09:00:00.000Z',
           deactivatedAt: '2024-06-01T18:00:00.000Z',
+          deactivationReason: null,
         },
       ],
     })
     expect(response.body.employee.hiredAt).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(
-      response.body.credentials.some((cred: { id: string }) => cred.id === 'cred-other-emp'),
+      response.body.credentials.some((cred: { id: string }) => cred.id === CREDENTIAL_OTHER_ID),
     ).toBe(false)
   })
 
@@ -893,5 +1028,229 @@ describe('GET /api/v1/me/permissions', () => {
     expect(forbidden.body).toEqual({
       error: { code: 'FORBIDDEN', message: 'Employee account required' },
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Self-service lost credential report
+// ---------------------------------------------------------------------------
+
+describe('POST /api/v1/me/credentials/:id/report-lost', () => {
+  it('returns 200 with trimmed custom reason, bumps configVersion only on active devices, and updates profile', async () => {
+    const response = await request(app)
+      .post(`/api/v1/me/credentials/${CREDENTIAL_ACTIVE_ID}/report-lost`)
+      .set('Authorization', 'Bearer employee-token')
+      .send({ reason: '  Extraviada en laboratorio  ' })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      credential: {
+        id: CREDENTIAL_ACTIVE_ID,
+        cardUid: '04CCDD3344',
+        label: 'Tarjeta principal',
+        status: 'lost',
+        issuedAt: '2024-06-02T10:00:00.000Z',
+        deactivatedAt: expect.any(String),
+        deactivationReason: 'Extraviada en laboratorio',
+      },
+    })
+    expect(new Date(response.body.credential.deactivatedAt).toISOString()).toBe(
+      response.body.credential.deactivatedAt,
+    )
+
+    expect(fake.db.devices).toEqual([
+      { id: DEVICE_ACTIVE_1_ID, status: 'active', configVersion: 2n },
+      { id: DEVICE_ACTIVE_2_ID, status: 'active', configVersion: 6n },
+      { id: DEVICE_INACTIVE_ID, status: 'inactive', configVersion: 3n },
+    ])
+
+    const profileResponse = await request(app)
+      .get('/api/v1/me/profile')
+      .set('Authorization', 'Bearer employee-token')
+
+    expect(profileResponse.status).toBe(200)
+    expect(profileResponse.body.credentials[0]).toEqual(response.body.credential)
+  })
+
+  it('returns 200 with default reason when body is empty', async () => {
+    const response = await request(app)
+      .post(`/api/v1/me/credentials/${CREDENTIAL_ACTIVE_ID}/report-lost`)
+      .set('Authorization', 'Bearer employee-token')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      credential: {
+        id: CREDENTIAL_ACTIVE_ID,
+        cardUid: '04CCDD3344',
+        label: 'Tarjeta principal',
+        status: 'lost',
+        issuedAt: '2024-06-02T10:00:00.000Z',
+        deactivatedAt: expect.any(String),
+        deactivationReason: DEFAULT_LOST_REPORT_REASON,
+      },
+    })
+    expect(new Date(response.body.credential.deactivatedAt).toISOString()).toBe(
+      response.body.credential.deactivatedAt,
+    )
+    expect(fake.db.devices).toEqual([
+      { id: DEVICE_ACTIVE_1_ID, status: 'active', configVersion: 2n },
+      { id: DEVICE_ACTIVE_2_ID, status: 'active', configVersion: 6n },
+      { id: DEVICE_INACTIVE_ID, status: 'inactive', configVersion: 3n },
+    ])
+  })
+
+  it('returns 200 with default reason when reason is whitespace-only', async () => {
+    const response = await request(app)
+      .post(`/api/v1/me/credentials/${CREDENTIAL_ACTIVE_ID}/report-lost`)
+      .set('Authorization', 'Bearer employee-token')
+      .send({ reason: '   \t\n  ' })
+
+    expect(response.status).toBe(200)
+    expect(response.body.credential).toMatchObject({
+      id: CREDENTIAL_ACTIVE_ID,
+      status: 'lost',
+      deactivationReason: DEFAULT_LOST_REPORT_REASON,
+    })
+    expect(new Date(response.body.credential.deactivatedAt).toISOString()).toBe(
+      response.body.credential.deactivatedAt,
+    )
+    expect(fake.db.devices).toEqual([
+      { id: DEVICE_ACTIVE_1_ID, status: 'active', configVersion: 2n },
+      { id: DEVICE_ACTIVE_2_ID, status: 'active', configVersion: 6n },
+      { id: DEVICE_INACTIVE_ID, status: 'inactive', configVersion: 3n },
+    ])
+  })
+
+  it('returns 409 CONFLICT when credential is already lost, blocked, or retired without incrementing configVersion', async () => {
+    fake.seedCredential({
+      id: CREDENTIAL_LOST_ID,
+      employeeId: EMPLOYEE_ID,
+      cardUid: '04AABB7788',
+      label: 'Tarjeta extraviada',
+      status: 'lost',
+      issuedAt: new Date('2024-02-01T10:00:00.000Z'),
+      deactivatedAt: new Date('2024-03-01T10:00:00.000Z'),
+      deactivationReason: 'Extraviada previamente',
+    })
+
+    fake.seedCredential({
+      id: CREDENTIAL_BLOCKED_ID,
+      employeeId: EMPLOYEE_ID,
+      cardUid: '04AABB9900',
+      label: 'Tarjeta bloqueada',
+      status: 'blocked',
+      issuedAt: new Date('2024-04-01T10:00:00.000Z'),
+      deactivatedAt: new Date('2024-05-01T10:00:00.000Z'),
+      deactivationReason: 'Bloqueada por administracion',
+    })
+
+    for (const credentialId of [
+      CREDENTIAL_LOST_ID,
+      CREDENTIAL_BLOCKED_ID,
+      CREDENTIAL_RETIRED_ID,
+    ]) {
+      const response = await request(app)
+        .post(`/api/v1/me/credentials/${credentialId}/report-lost`)
+        .set('Authorization', 'Bearer employee-token')
+        .send({ reason: 'Intento duplicado' })
+
+      expect(response.status).toBe(409)
+      expect(response.body).toMatchObject({
+        error: { code: 'CONFLICT' },
+      })
+    }
+
+    expect(fake.db.devices).toEqual([
+      { id: DEVICE_ACTIVE_1_ID, status: 'active', configVersion: 1n },
+      { id: DEVICE_ACTIVE_2_ID, status: 'active', configVersion: 5n },
+      { id: DEVICE_INACTIVE_ID, status: 'inactive', configVersion: 3n },
+    ])
+  })
+
+  it('returns 404 NOT_FOUND when credential belongs to another employee or does not exist without incrementing configVersion', async () => {
+    const foreignResponse = await request(app)
+      .post(`/api/v1/me/credentials/${CREDENTIAL_OTHER_ID}/report-lost`)
+      .set('Authorization', 'Bearer employee-token')
+
+    expect(foreignResponse.status).toBe(404)
+    expect(foreignResponse.body).toMatchObject({
+      error: { code: 'NOT_FOUND' },
+    })
+
+    const missingResponse = await request(app)
+      .post(`/api/v1/me/credentials/${MISSING_CREDENTIAL_ID}/report-lost`)
+      .set('Authorization', 'Bearer employee-token')
+
+    expect(missingResponse.status).toBe(404)
+    expect(missingResponse.body).toMatchObject({
+      error: { code: 'NOT_FOUND' },
+    })
+
+    expect(fake.db.devices).toEqual([
+      { id: DEVICE_ACTIVE_1_ID, status: 'active', configVersion: 1n },
+      { id: DEVICE_ACTIVE_2_ID, status: 'active', configVersion: 5n },
+      { id: DEVICE_INACTIVE_ID, status: 'inactive', configVersion: 3n },
+    ])
+  })
+
+  it('returns 400 VALIDATION_ERROR when :id is not a valid UUID or reason exceeds 500 characters', async () => {
+    const invalidIdResponse = await request(app)
+      .post('/api/v1/me/credentials/not-a-uuid/report-lost')
+      .set('Authorization', 'Bearer employee-token')
+
+    expect(invalidIdResponse.status).toBe(400)
+    expect(invalidIdResponse.body).toMatchObject({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid request payload',
+      },
+    })
+    expect(Array.isArray(invalidIdResponse.body.error.details)).toBe(true)
+
+    const longReasonResponse = await request(app)
+      .post(`/api/v1/me/credentials/${CREDENTIAL_ACTIVE_ID}/report-lost`)
+      .set('Authorization', 'Bearer employee-token')
+      .send({ reason: 'a'.repeat(501) })
+
+    expect(longReasonResponse.status).toBe(400)
+    expect(longReasonResponse.body).toMatchObject({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid request payload',
+      },
+    })
+    expect(Array.isArray(longReasonResponse.body.error.details)).toBe(true)
+
+    expect(fake.db.devices).toEqual([
+      { id: DEVICE_ACTIVE_1_ID, status: 'active', configVersion: 1n },
+      { id: DEVICE_ACTIVE_2_ID, status: 'active', configVersion: 5n },
+      { id: DEVICE_INACTIVE_ID, status: 'inactive', configVersion: 3n },
+    ])
+  })
+
+  it('returns 401 UNAUTHORIZED without a token and 403 FORBIDDEN for an account without employeeId', async () => {
+    const unauthenticated = await request(app).post(
+      `/api/v1/me/credentials/${CREDENTIAL_ACTIVE_ID}/report-lost`,
+    )
+
+    expect(unauthenticated.status).toBe(401)
+    expect(unauthenticated.body).toEqual({
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    })
+
+    const forbidden = await request(app)
+      .post(`/api/v1/me/credentials/${CREDENTIAL_ACTIVE_ID}/report-lost`)
+      .set('Authorization', 'Bearer admin-no-employee-token')
+
+    expect(forbidden.status).toBe(403)
+    expect(forbidden.body).toEqual({
+      error: { code: 'FORBIDDEN', message: 'Employee account required' },
+    })
+
+    expect(fake.db.devices).toEqual([
+      { id: DEVICE_ACTIVE_1_ID, status: 'active', configVersion: 1n },
+      { id: DEVICE_ACTIVE_2_ID, status: 'active', configVersion: 5n },
+      { id: DEVICE_INACTIVE_ID, status: 'inactive', configVersion: 3n },
+    ])
   })
 })

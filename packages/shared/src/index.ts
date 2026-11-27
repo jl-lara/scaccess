@@ -350,12 +350,21 @@ export interface MyCredentialSummaryDto {
   status: CredentialStatus
   issuedAt: string | null
   deactivatedAt: string | null
+  deactivationReason?: string | null
 }
 
 export interface MyProfileResponseDto {
   account: UserAccountDto
   employee: MyEmployeeProfileDto
   credentials: MyCredentialSummaryDto[]
+}
+
+export interface ReportLostCredentialRequestDto {
+  reason?: string
+}
+
+export interface ReportLostCredentialResponseDto {
+  credential: MyCredentialSummaryDto
 }
 
 export interface MyAreaSummaryDto {
