@@ -5,7 +5,6 @@ import {
   DECISION_LABELS,
   REASON_LABELS,
   getEventAreaDisplayName,
-  getEventDeviceDisplayName,
 } from './areaLabels'
 import { formatCardUid, formatDateTime } from './formatters'
 
@@ -27,23 +26,12 @@ export function buildEventReceiptMessage(
     `Resultado: ${DECISION_LABELS[event.decision]}`,
     `Motivo: ${REASON_LABELS[event.reasonCode]}`,
     `Área: ${getEventAreaDisplayName(event)}`,
-  ]
-
-  if (event.device !== undefined) {
-    lines.push(`Lector: ${getEventDeviceDisplayName(event)}`)
-  }
-
-  lines.push(
-    `Lectura en lector: ${formatDateTime(event.occurredAt)}`,
-    `Sincronizado al servidor: ${formatDateTime(event.receivedAt)}`,
+    `Fecha y hora: ${formatDateTime(event.occurredAt)}`,
+    `Registrado en sistema: ${formatDateTime(event.receivedAt)}`,
     `Sincronización: ${syncDelay.detailLabel}`,
     `Tarjeta RFID: ${formatCardUid(event.cardUid) || '—'}`,
-    `ID de evento: ${event.clientEventId}`,
-  )
-
-  if (event.deviceSequence !== null) {
-    lines.push(`Secuencia del dispositivo: ${event.deviceSequence}`)
-  }
+    `Referencia: ${event.clientEventId}`,
+  ]
 
   return {
     title: 'Comprobante de acceso — Accesa',

@@ -3,10 +3,17 @@ import { describe, expect, it } from 'vitest'
 
 import {
   DEFAULT_HISTORY_FILTERS,
+  HISTORY_DATE_CHECKLIST,
+  HISTORY_DECISION_CHECKLIST,
   buildHistoryQueryParams,
+  countActiveHistoryFilters,
+  getActiveFilterSummaryLabels,
   getTijuanaStartOfDayIso,
   hasActiveHistoryFilters,
   mergeAreaOptions,
+  toggleAreaFilter,
+  toggleDatePresetFilter,
+  toggleDecisionFilter,
 } from '../src/utils/historyFilters'
 
 function makePermission(
@@ -201,6 +208,115 @@ describe('historyFilters', () => {
         { id: 'area-3', name: 'Almacén General', code: 'WAREHOUSE' },
         { id: 'area-2', name: 'Centro de Datos', code: 'SERVER_ROOM' },
       ])
+    })
+  })
+
+  describe('constantes de checklist', () => {
+    it('expone las opciones de decision y periodo en espanol', () => {
+      expect(HISTORY_DECISION_CHECKLIST).toEqual([
+        { value: 'granted', label: 'Permitidos' },
+        { value: 'denied', label: 'Denegados' },
+      ])
+      expect(HISTORY_DATE_CHECKLIST).toEqual([
+        { value: 'today', label: 'Hoy' },
+        { value: '7d', label: 'Últimos 7 días' },
+        { value: '30d', label: 'Últimos 30 días' },
+      ])
+    })
+  })
+
+  describe('countActiveHistoryFilters', () => {
+    it('devuelve 0 para los filtros por defecto', () => {
+      expect(countActiveHistoryFilters(DEFAULT_HISTORY_FILTERS)).toBe(0)
+    })
+
+    it('cuenta 1, 2 o 3 filtros segun las combinaciones activas', () => {
+      expect(
+        countActiveHistoryFilters({
+          ...DEFAULT_HISTORY_FILTERS,
+          decision: 'granted',
+        }),
+      ).toBe(1)
+
+      expect(
+        countActiveHistoryFilters({
+          decision: 'denied',
+          datePreset: '7d',
+          areaId: null,
+        }),
+      ).toBe(2)
+
+      expect(
+        countActiveHistoryFilters({
+          decision: 'granted',
+          datePreset: '30d',
+          areaId: 'area-1',
+        }),
+      ).toBe(3)
+    })
+  })
+
+  describe('getActiveFilterSummaryLabels', () => {
+    const areaOptions = [
+      { id: 'area-1', name: 'Acceso Principal', code: 'MAIN_ENTRANCE' },
+      { id: 'area-2', name: 'Laboratorio de Electrónica', code: 'LAB_ELEC' },
+    ]
+
+    it('devuelve un arreglo vacio para los filtros por defecto', () => {
+      expect(
+        getActiveFilterSummaryLabels(DEFAULT_HISTORY_FILTERS, areaOptions),
+      ).toEqual([])
+    })
+
+    it('devuelve etiquetas ordenadas de decision, periodo y nombre limpio de area sin codigo', () => {
+      const labels = getActiveFilterSummaryLabels(
+        {
+          decision: 'denied',
+          datePreset: '7d',
+          areaId: 'area-2',
+        },
+        areaOptions,
+      )
+
+      expect(labels).toEqual([
+        'Denegados',
+        'Últimos 7 días',
+        'Laboratorio de Electrónica',
+      ])
+      expect(labels.join(' ')).not.toContain('LAB_ELEC')
+    })
+
+    it('usa la etiqueta de respaldo cuando areaId no esta en areaOptions', () => {
+      expect(
+        getActiveFilterSummaryLabels(
+          {
+            decision: 'granted',
+            datePreset: 'today',
+            areaId: 'area-missing',
+          },
+          areaOptions,
+        ),
+      ).toEqual(['Permitidos', 'Hoy', 'Área seleccionada'])
+    })
+  })
+
+  describe('helpers toggle de filtros', () => {
+    it('alterna toggleDecisionFilter entre el objetivo y all', () => {
+      expect(toggleDecisionFilter('all', 'granted')).toBe('granted')
+      expect(toggleDecisionFilter('granted', 'granted')).toBe('all')
+      expect(toggleDecisionFilter('granted', 'denied')).toBe('denied')
+    })
+
+    it('alterna toggleDatePresetFilter entre el objetivo y all', () => {
+      expect(toggleDatePresetFilter('all', 'today')).toBe('today')
+      expect(toggleDatePresetFilter('today', 'today')).toBe('all')
+      expect(toggleDatePresetFilter('today', '30d')).toBe('30d')
+    })
+
+    it('alterna toggleAreaFilter entre areaId y null', () => {
+      expect(toggleAreaFilter(null, 'area-1')).toBe('area-1')
+      expect(toggleAreaFilter('area-1', 'area-1')).toBeNull()
+      expect(toggleAreaFilter('area-1', 'area-2')).toBe('area-2')
     })
   })
 })

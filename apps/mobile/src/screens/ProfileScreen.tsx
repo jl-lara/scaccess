@@ -292,7 +292,9 @@ export function ProfileScreen() {
             <Text style={styles.employeeName}>
               {`${employee.firstName} ${employee.lastName}`}
             </Text>
-            <Text style={styles.employeeCode}>{employee.employeeCode}</Text>
+            <Text style={styles.employeeCode}>
+              {`No. ${employee.employeeCode}`}
+            </Text>
           </View>
           <View
             style={[
@@ -362,11 +364,11 @@ export function ProfileScreen() {
                 <View key={cred.id} style={styles.credentialItem}>
                   <View style={styles.credentialHeader}>
                     <View style={styles.credentialInfo}>
-                      <Text style={styles.credentialUid}>
-                        {formatCardUid(cred.cardUid) || cred.cardUid}
-                      </Text>
                       <Text style={styles.credentialLabel}>
                         {cred.label ?? 'Tarjeta RFID'}
+                      </Text>
+                      <Text style={styles.credentialUid}>
+                        {formatCardUid(cred.cardUid) || cred.cardUid}
                       </Text>
                     </View>
                     <View
@@ -415,11 +417,13 @@ export function ProfileScreen() {
         </Text>
 
         <View style={styles.detailsSectionNoBorder}>
-          <ProfileRow
-            label="Correo de cuenta"
-            value={account.email}
-            styles={styles}
-          />
+          {employee.email !== null && employee.email !== account.email ? (
+            <ProfileRow
+              label="Correo de cuenta"
+              value={account.email}
+              styles={styles}
+            />
+          ) : null}
           <ProfileRow
             label="Último acceso"
             value={
@@ -567,8 +571,8 @@ function createStyles(colors: ThemeColors) {
       color: colors.textPrimary,
     },
     employeeCode: {
-      fontFamily: MONO_FONT,
-      fontSize: 12,
+      fontSize: 13,
+      fontWeight: '500',
       color: colors.textMuted,
     },
     statusPill: {
@@ -635,15 +639,15 @@ function createStyles(colors: ThemeColors) {
       flex: 1,
       gap: 2,
     },
-    credentialUid: {
-      fontFamily: MONO_FONT,
-      fontSize: 14,
+    credentialLabel: {
+      fontSize: 15,
       fontWeight: '700',
       color: colors.textPrimary,
     },
-    credentialLabel: {
-      fontSize: 13,
-      color: colors.textSecondary,
+    credentialUid: {
+      fontFamily: MONO_FONT,
+      fontSize: 12,
+      color: colors.textMuted,
     },
     credentialNotice: {
       fontSize: 12,

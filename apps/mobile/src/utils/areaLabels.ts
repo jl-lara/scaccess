@@ -34,33 +34,30 @@ export const REASON_LABELS: Record<AccessReason, string> = {
   permission_missing: 'Sin permiso para el área',
   permission_expired: 'Permiso vencido',
   permission_outside_schedule: 'Fuera de horario permitido',
-  area_not_allowed: 'Área no autorizada en dispositivo',
+  area_not_allowed: 'Área no autorizada',
   area_inactive: 'Área inactiva',
-  device_error: 'Error del lector físico',
+  device_error: 'Error de lectura',
 }
 
 export const KNOWN_AREA_NAMES: Record<string, string> = {
-  '8a983ee5-b312-454b-b51b-f53a79ea62ae': 'Acceso Principal (MAIN_ENTRANCE)',
-  'b56485d7-1826-435a-b242-701750f87da5':
-    'Laboratorio de Electrónica (LAB_ELECTRONICS)',
-  '24abc3d9-6558-4c79-878a-8a662622d17c': 'Área de Pruebas QA (QA_TEST_AREA)',
-  'c89c95b3-0394-459f-b620-6d1b7281e76f':
-    'Oficinas Administrativas (ADMIN_OFFICES)',
-  '3c4a92ce-a31e-42cb-88f4-bbf468d5067b':
-    'Centro de Datos y Servidores (SERVER_ROOM)',
-  '5d4b72a4-acaa-42e3-93b7-9dfcad985f5b':
-    'Almacén General y Logística (WAREHOUSE_RFID)',
+  '8a983ee5-b312-454b-b51b-f53a79ea62ae': 'Acceso Principal',
+  'b56485d7-1826-435a-b242-701750f87da5': 'Laboratorio de Electrónica',
+  '24abc3d9-6558-4c79-878a-8a662622d17c': 'Área de Pruebas QA',
+  'c89c95b3-0394-459f-b620-6d1b7281e76f': 'Oficinas Administrativas',
+  '3c4a92ce-a31e-42cb-88f4-bbf468d5067b': 'Centro de Datos y Servidores',
+  '5d4b72a4-acaa-42e3-93b7-9dfcad985f5b': 'Almacén General y Logística',
 }
 
 export function getAreaDisplayName(areaId: string): string {
-  return KNOWN_AREA_NAMES[areaId] ?? `Área ${areaId.slice(0, 8)}`
+  return KNOWN_AREA_NAMES[areaId] ?? 'Área registrada'
 }
 
 export function getEventAreaDisplayName(
   event: Pick<AccessEventDto, 'areaId' | 'area'>,
 ): string {
-  if (event.area) {
-    return `${event.area.name} (${event.area.code})`
+  const trimmedName = event.area?.name?.trim()
+  if (trimmedName) {
+    return trimmedName
   }
   return getAreaDisplayName(event.areaId)
 }
@@ -71,7 +68,7 @@ export function getEventDeviceDisplayName(
   if (event.device) {
     return event.device.location
       ? `${event.device.name} · ${event.device.location}`
-      : `${event.device.name} (${event.device.deviceCode})`
+      : event.device.name
   }
-  return `Lector ${event.deviceId.slice(0, 8)}`
+  return 'Punto de acceso'
 }

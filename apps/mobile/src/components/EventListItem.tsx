@@ -8,10 +8,9 @@ import { getSyncDelayInfo } from '../utils/accessHistory'
 import {
   DECISION_LABELS,
   getEventAreaDisplayName,
-  getEventDeviceDisplayName,
   REASON_LABELS,
 } from '../utils/areaLabels'
-import { formatDateTime } from '../utils/formatters'
+import { formatDateTime, formatTime } from '../utils/formatters'
 import { DecisionBadge } from './DecisionBadge'
 
 interface EventListItemProps {
@@ -20,7 +19,7 @@ interface EventListItemProps {
 }
 
 /**
- * Tarjeta presionable que resume un evento de acceso: area, fecha/hora,
+ * Tarjeta presionable que resume un evento de acceso: area, hora,
  * motivo y decision. Abre el detalle del evento al presionarse.
  */
 export function EventListItem({ event, onPress }: EventListItemProps) {
@@ -28,19 +27,14 @@ export function EventListItem({ event, onPress }: EventListItemProps) {
   const styles = useMemo(() => createStyles(colors), [colors])
 
   const areaName = getEventAreaDisplayName(event)
+  const timeLabel = formatTime(event.occurredAt)
   const dateTime = formatDateTime(event.occurredAt)
-  const deviceName =
-    event.device !== undefined ? getEventDeviceDisplayName(event) : null
   const reasonLabel = REASON_LABELS[event.reasonCode]
   const decisionLabel = DECISION_LABELS[event.decision]
   const syncDelay = getSyncDelayInfo(event.occurredAt, event.receivedAt)
   const delayLabel = syncDelay.isDelayed ? syncDelay.shortLabel : null
 
-  const accessibilityParts = [areaName, decisionLabel, dateTime]
-  if (deviceName !== null) {
-    accessibilityParts.push(deviceName)
-  }
-  accessibilityParts.push(reasonLabel)
+  const accessibilityParts = [areaName, decisionLabel, dateTime, reasonLabel]
   if (delayLabel !== null) {
     accessibilityParts.push(delayLabel)
   }
@@ -54,20 +48,18 @@ export function EventListItem({ event, onPress }: EventListItemProps) {
       accessibilityHint="Abre el detalle del evento de acceso"
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
     >
-      <View style={styles.content}>
+      <View style={styles.topRow}>
         <Text style={styles.areaName}>{areaName}</Text>
-        <Text style={styles.dateTime}>{dateTime}</Text>
-        {deviceName !== null ? (
-          <Text style={styles.device}>{deviceName}</Text>
-        ) : null}
-        <Text style={styles.reason}>{reasonLabel}</Text>
-        {delayLabel !== null ? (
-          <View style={styles.delayPill}>
-            <Text style={styles.delayPillText}>{delayLabel}</Text>
-          </View>
-        ) : null}
+        <DecisionBadge decision={event.decision} compact />
       </View>
-      <DecisionBadge decision={event.decision} />
+
+      <Text style={styles.metaText}>{`${timeLabel} · ${reasonLabel}`}</Text>
+
+      {delayLabel !== null ? (
+        <View style={styles.delayPill}>
+          <Text style={styles.delayPillText}>{delayLabel}</Text>
+        </View>
+      ) : null}
     </Pressable>
   )
 }
@@ -75,9 +67,6 @@ export function EventListItem({ event, onPress }: EventListItemProps) {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     card: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
       backgroundColor: colors.surface,
       borderColor: colors.borderSubtle,
       borderWidth: 1,
@@ -92,28 +81,21 @@ function createStyles(colors: ThemeColors) {
     cardPressed: {
       backgroundColor: colors.surfaceHover,
     },
-    content: {
-      flex: 1,
-      marginRight: spacing.md,
+    topRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
     },
     areaName: {
+      flex: 1,
       color: colors.textPrimary,
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: '700',
     },
-    dateTime: {
+    metaText: {
       color: colors.textSecondary,
       fontSize: 13,
-      marginTop: spacing.xs,
-    },
-    device: {
-      color: colors.textMuted,
-      fontSize: 12,
-      marginTop: spacing.xs,
-    },
-    reason: {
-      color: colors.textMuted,
-      fontSize: 12,
       marginTop: spacing.xs,
     },
     delayPill: {
