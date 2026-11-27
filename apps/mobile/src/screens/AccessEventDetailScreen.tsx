@@ -1,6 +1,14 @@
 import type { AccessEventDto } from '@scaccess/shared'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   ActivityIndicator,
   Platform,
@@ -20,32 +28,33 @@ import { useTheme } from '../context/ThemeContext'
 import type { RootStackParamList } from '../navigation/types'
 import { radii, spacing, type ThemeColors } from '../theme/colors'
 import { getSyncDelayInfo } from '../utils/accessHistory'
-import {
-  REASON_LABELS,
-  getEventAreaDisplayName,
-  getEventDeviceDisplayName,
-} from '../utils/areaLabels'
+import { REASON_LABELS, getEventAreaDisplayName } from '../utils/areaLabels'
 import { toDetailError } from '../utils/errorMessages'
 import { buildEventReceiptMessage } from '../utils/eventReceipt'
 import { formatCardUid, formatDateTime } from '../utils/formatters'
 
 const MONO_FONT = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' })
 
-function DetailBlock({
+function InfoRow({
   label,
   value,
   mono = false,
+  withDivider = true,
   styles,
+  children,
 }: {
   label: string
   value: string
   mono?: boolean
+  withDivider?: boolean
   styles: ReturnType<typeof createStyles>
+  children?: ReactNode
 }) {
   return (
-    <View style={styles.block}>
-      <Text style={styles.blockLabel}>{label}</Text>
-      <Text style={[styles.blockValue, mono && styles.blockMono]}>{value}</Text>
+    <View style={[styles.row, withDivider && styles.rowDivider]}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={[styles.rowValue, mono && styles.rowMono]}>{value}</Text>
+      {children}
     </View>
   )
 }
@@ -182,84 +191,76 @@ export function AccessEventDetailScreen({
         </View>
       ) : null}
 
-      <View style={styles.block}>
-        <Text style={styles.blockLabel}>Resultado</Text>
+      <View style={styles.card}>
+        <Text style={styles.sectionLabel} accessibilityRole="header">
+          Resumen
+        </Text>
         <DecisionBadge decision={event.decision} />
+        <Text style={styles.areaName}>{getEventAreaDisplayName(event)}</Text>
         <Text style={styles.reasonText}>{REASON_LABELS[event.reasonCode]}</Text>
       </View>
 
-      <View style={styles.block}>
-        <Text style={styles.blockLabel}>Área</Text>
-        <Text style={styles.blockValue}>{getEventAreaDisplayName(event)}</Text>
-        <Text style={styles.blockMono}>{event.area?.code ?? event.areaId}</Text>
-      </View>
-
-      <View style={styles.block}>
-        <Text style={styles.blockLabel}>Lector / Dispositivo</Text>
-        <Text style={styles.blockValue}>{getEventDeviceDisplayName(event)}</Text>
-        <Text style={styles.blockMono}>
-          {event.device?.deviceCode ?? event.deviceId}
+      <View style={styles.card}>
+        <Text style={styles.sectionLabel} accessibilityRole="header">
+          Información del registro
         </Text>
-      </View>
 
-      <DetailBlock
-        label="Lectura en el lector"
-        value={formatDateTime(event.occurredAt)}
-        styles={styles}
-      />
-      <View style={styles.block}>
-        <Text style={styles.blockLabel}>Sincronizado al servidor</Text>
-        <Text style={styles.blockValue}>{formatDateTime(event.receivedAt)}</Text>
-        <View
-          style={[
-            styles.syncPill,
-            syncDelay.isDelayed
-              ? styles.syncPillDelayed
-              : syncDelay.delaySeconds !== null
-                ? styles.syncPillRealtime
-                : styles.syncPillUnavailable,
-          ]}
+        <InfoRow
+          label="Fecha y hora"
+          value={formatDateTime(event.occurredAt)}
+          withDivider={false}
+          styles={styles}
+        />
+
+        <InfoRow
+          label="Registro en sistema"
+          value={formatDateTime(event.receivedAt)}
+          styles={styles}
         >
-          <Text
+          <View
             style={[
-              styles.syncPillText,
+              styles.syncPill,
               syncDelay.isDelayed
-                ? styles.syncPillTextDelayed
+                ? styles.syncPillDelayed
                 : syncDelay.delaySeconds !== null
-                  ? styles.syncPillTextRealtime
-                  : styles.syncPillTextUnavailable,
+                  ? styles.syncPillRealtime
+                  : styles.syncPillUnavailable,
             ]}
           >
-            {syncDelay.detailLabel}
-          </Text>
-        </View>
-        {syncDelay.isDelayed ? (
-          <Text style={styles.syncHint}>
-            El controlador ESP32-S3 registró este acceso sin conexión y lo envió al recuperar red.
-          </Text>
-        ) : null}
-      </View>
-      <DetailBlock
-        label="Tarjeta RFID"
-        value={formatCardUid(event.cardUid)}
-        mono
-        styles={styles}
-      />
-      <DetailBlock
-        label="Identificador del evento"
-        value={event.clientEventId}
-        mono
-        styles={styles}
-      />
+            <Text
+              style={[
+                styles.syncPillText,
+                syncDelay.isDelayed
+                  ? styles.syncPillTextDelayed
+                  : syncDelay.delaySeconds !== null
+                    ? styles.syncPillTextRealtime
+                    : styles.syncPillTextUnavailable,
+              ]}
+            >
+              {syncDelay.detailLabel}
+            </Text>
+          </View>
+          {syncDelay.isDelayed ? (
+            <Text style={styles.syncHint}>
+              Este acceso se guardó sin conexión y se registró al restablecerse la red.
+            </Text>
+          ) : null}
+        </InfoRow>
 
-      {event.deviceSequence !== null ? (
-        <DetailBlock
-          label="Secuencia del dispositivo"
-          value={event.deviceSequence}
+        <InfoRow
+          label="Tarjeta RFID"
+          value={formatCardUid(event.cardUid) || '—'}
           mono
           styles={styles}
         />
-      ) : null}
+
+        <InfoRow
+          label="Referencia"
+          value={event.clientEventId}
+          mono
+          styles={styles}
+        />
+      </View>
 
       {shareError !== null ? (
         <View style={styles.shareErrorBox} role="alert">
@@ -345,38 +346,61 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '700',
       color: colors.deniedText,
     },
-    block: {
+    card: {
       backgroundColor: colors.surface,
       borderColor: colors.borderSubtle,
       borderWidth: 1,
       borderRadius: radii.lg,
       padding: spacing.lg,
       marginBottom: spacing.md,
+      gap: spacing.sm,
     },
-    blockLabel: {
+    sectionLabel: {
       fontSize: 12,
       fontWeight: '600',
       letterSpacing: 0.6,
       textTransform: 'uppercase',
       color: colors.textMuted,
-      marginBottom: spacing.sm,
+      marginBottom: spacing.xs,
     },
-    blockValue: {
-      fontSize: 16,
-      lineHeight: 22,
+    areaName: {
+      fontSize: 20,
+      fontWeight: '700',
+      lineHeight: 26,
       color: colors.textPrimary,
-    },
-    blockMono: {
-      fontFamily: MONO_FONT,
-      fontSize: 13,
-      color: colors.textMuted,
       marginTop: spacing.xs,
     },
     reasonText: {
       fontSize: 15,
       lineHeight: 22,
       color: colors.textSecondary,
-      marginTop: spacing.md,
+    },
+    row: {
+      gap: spacing.xs,
+    },
+    rowDivider: {
+      borderTopWidth: 1,
+      borderTopColor: colors.borderSubtle,
+      paddingTop: spacing.md,
+      marginTop: spacing.xs,
+    },
+    rowLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textMuted,
+    },
+    rowValue: {
+      fontSize: 15,
+      lineHeight: 21,
+      fontWeight: '500',
+      color: colors.textPrimary,
+    },
+    rowMono: {
+      fontFamily: MONO_FONT,
+      fontSize: 13,
+      lineHeight: 19,
+      fontWeight: '400',
+      color: colors.textSecondary,
     },
     syncPill: {
       alignSelf: 'flex-start',

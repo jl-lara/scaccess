@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
+  Modal,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -16,6 +16,7 @@ import { EmptyState } from '../components/EmptyState'
 import { useTheme } from '../context/ThemeContext'
 import { radii, spacing, type ThemeColors } from '../theme/colors'
 import { toPermissionsError } from '../utils/errorMessages'
+import { TIJUANA_TIME_ZONE } from '../utils/formatters'
 import {
   formatPermissionSchedule,
   formatValidityRange,
@@ -24,11 +25,14 @@ import {
   type PermissionEffectiveStatus,
 } from '../utils/permissionsFormatters'
 
-const MONO_FONT = Platform.select({
-  ios: 'Menlo',
-  android: 'monospace',
-  default: 'monospace',
-})
+const FILTER_OPTIONS: Array<{
+  key: string
+  label: string
+  targetShowAll: boolean
+}> = [
+  { key: 'active', label: 'Solo permisos vigentes', targetShowAll: false },
+  { key: 'all', label: 'Incluir vencidos y revocados', targetShowAll: true },
+]
 
 interface StatusPillTokens {
   backgroundColor: string
@@ -112,10 +116,7 @@ function PermissionCard({
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <View style={styles.cardTitleGroup}>
-          <Text style={styles.areaName}>{permission.area.name}</Text>
-          <Text style={styles.areaCode}>{permission.area.code}</Text>
-        </View>
+        <Text style={styles.areaName}>{permission.area.name}</Text>
         <View
           style={[
             styles.statusPill,
@@ -148,11 +149,13 @@ function PermissionCard({
           value={formatPermissionSchedule(permission.schedule)}
           styles={styles}
         />
-        <DetailRow
-          label="Zona horaria"
-          value={permission.area.timezone}
-          styles={styles}
-        />
+        {permission.area.timezone !== TIJUANA_TIME_ZONE ? (
+          <DetailRow
+            label="Zona horaria"
+            value={permission.area.timezone}
+            styles={styles}
+          />
+        ) : null}
       </View>
     </View>
   )
@@ -168,6 +171,7 @@ export function MyPermissionsScreen() {
 
   const [permissions, setPermissions] = useState<MyAccessPermissionDto[]>([])
   const [showAll, setShowAll] = useState(false)
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -245,11 +249,6 @@ export function MyPermissionsScreen() {
     return () => clearTimeout(timer)
   }, [isInitialLoading])
 
-  const filterChips: { key: string; label: string; targetShowAll: boolean }[] = [
-    { key: 'active', label: 'Vigentes', targetShowAll: false },
-    { key: 'all', label: 'Todos (incl. revocados)', targetShowAll: true },
-  ]
-
   const listHeader =
     error !== null || (loading && permissions.length > 0) ? (
       <View style={styles.listHeader}>
@@ -280,31 +279,21 @@ export function MyPermissionsScreen() {
   return (
     <View style={styles.root}>
       <View style={styles.filterBar}>
-        {filterChips.map((chip) => {
-          const selected = showAll === chip.targetShowAll
-          return (
-            <Pressable
-              key={chip.key}
-              onPress={() => setShowAll(chip.targetShowAll)}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              style={({ pressed }) => [
-                styles.filterChip,
-                selected && styles.filterChipSelected,
-                pressed && !selected && styles.filterChipPressed,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  selected && styles.filterChipTextSelected,
-                ]}
-              >
-                {chip.label}
-              </Text>
-            </Pressable>
-          )
-        })}
+        <Pressable
+          onPress={() => setFilterMenuOpen(true)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: filterMenuOpen }}
+          style={({ pressed }) => [
+            styles.filterTrigger,
+            filterMenuOpen && styles.filterTriggerOpen,
+            pressed && styles.filterTriggerPressed,
+          ]}
+        >
+          <Text style={styles.filterTriggerText}>
+            {showAll ? 'Mostrar: Todos los permisos' : 'Mostrar: Solo vigentes'}
+          </Text>
+          <Text style={styles.filterTriggerCaret}>▾</Text>
+        </Pressable>
       </View>
 
       {isInitialLoading ? (
@@ -364,6 +353,79 @@ export function MyPermissionsScreen() {
           }
         />
       )}
+
+      <Modal
+        visible={filterMenuOpen}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setFilterMenuOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={[StyleSheet.absoluteFill, styles.modalBackdrop]}
+            onPress={() => setFilterMenuOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar filtros"
+          />
+
+          <View style={styles.modalCard} accessibilityViewIsModal>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle} accessibilityRole="header">
+                Filtrar permisos
+              </Text>
+              <Pressable
+                onPress={() => setFilterMenuOpen(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Cerrar filtros"
+                style={({ pressed }) => [
+                  styles.modalCloseButton,
+                  pressed && styles.modalCloseButtonPressed,
+                ]}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </Pressable>
+            </View>
+
+            {FILTER_OPTIONS.map((option, index) => {
+              const checked = showAll === option.targetShowAll
+              return (
+                <Pressable
+                  key={option.key}
+                  onPress={() => {
+                    setShowAll(option.targetShowAll)
+                    setFilterMenuOpen(false)
+                  }}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked }}
+                  style={({ pressed }) => [
+                    styles.filterOptionRow,
+                    index > 0 && styles.filterOptionDivider,
+                    pressed && styles.filterOptionPressed,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      checked ? styles.checkboxChecked : styles.checkboxUnchecked,
+                    ]}
+                  >
+                    {checked ? <Text style={styles.checkboxMark}>✓</Text> : null}
+                  </View>
+                  <Text
+                    style={[
+                      styles.filterOptionText,
+                      checked && styles.filterOptionTextChecked,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -375,38 +437,135 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.background,
     },
     filterBar: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: spacing.sm,
       paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.md,
+      paddingVertical: spacing.sm,
       backgroundColor: colors.surface,
       borderBottomWidth: 1,
       borderBottomColor: colors.borderSubtle,
     },
-    filterChip: {
+    filterTrigger: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs + 2,
-      borderRadius: radii.pill,
+      paddingVertical: spacing.sm,
+      borderRadius: radii.md,
       backgroundColor: colors.surfaceElevated,
       borderWidth: 1,
-      borderColor: colors.borderStrong,
+      borderColor: colors.borderSubtle,
     },
-    filterChipSelected: {
+    filterTriggerOpen: {
+      borderColor: colors.brandBorder,
+      backgroundColor: colors.brandSoft,
+    },
+    filterTriggerPressed: {
+      backgroundColor: colors.surfaceHover,
+    },
+    filterTriggerText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    filterTriggerCaret: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    modalOverlay: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: spacing.lg,
+    },
+    modalBackdrop: {
+      backgroundColor: 'rgba(18, 12, 24, 0.52)',
+    },
+    modalCard: {
+      width: '100%',
+      maxWidth: 400,
+      backgroundColor: colors.surface,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.borderSubtle,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 1,
+      shadowRadius: 16,
+      elevation: 8,
+      overflow: 'hidden',
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderSubtle,
+    },
+    modalTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    modalCloseButton: {
+      width: 28,
+      height: 28,
+      borderRadius: radii.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalCloseButtonPressed: {
+      backgroundColor: colors.surfaceHover,
+    },
+    modalCloseText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    filterOptionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm + 2,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+    },
+    filterOptionDivider: {
+      borderTopWidth: 1,
+      borderTopColor: colors.borderSubtle,
+    },
+    filterOptionPressed: {
+      backgroundColor: colors.surfaceHover,
+    },
+    checkbox: {
+      width: 20,
+      height: 20,
+      borderRadius: radii.sm,
+      borderWidth: 1.5,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkboxChecked: {
       backgroundColor: colors.brand,
       borderColor: colors.brand,
     },
-    filterChipPressed: {
-      backgroundColor: colors.surfaceHover,
+    checkboxUnchecked: {
+      backgroundColor: colors.surface,
+      borderColor: colors.borderStrong,
     },
-    filterChipText: {
-      fontSize: 13,
-      fontWeight: '600',
+    checkboxMark: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.brandContrast,
+    },
+    filterOptionText: {
+      fontSize: 14,
+      fontWeight: '500',
       color: colors.textSecondary,
     },
-    filterChipTextSelected: {
-      color: colors.brandContrast,
+    filterOptionTextChecked: {
       fontWeight: '700',
+      color: colors.textPrimary,
     },
     centered: {
       flex: 1,
@@ -503,19 +662,11 @@ function createStyles(colors: ThemeColors) {
       alignItems: 'flex-start',
       gap: spacing.md,
     },
-    cardTitleGroup: {
-      flex: 1,
-      gap: 2,
-    },
     areaName: {
+      flex: 1,
       fontSize: 16,
       fontWeight: '700',
       color: colors.textPrimary,
-    },
-    areaCode: {
-      fontFamily: MONO_FONT,
-      fontSize: 12,
-      color: colors.textMuted,
     },
     statusPill: {
       borderRadius: radii.pill,
